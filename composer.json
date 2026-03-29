@@ -1,0 +1,19 @@
+{
+  "name": "local/binance-app",
+  "description": "High-speed Binance market watcher with custom MVC architecture.",
+  "type": "project",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  },
+  "scripts": {
+    "serve:lint": [
+      "php -l public/index.php"
+    ]
+  }
+}
+

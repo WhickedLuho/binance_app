@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.php text working-tree-encoding=UTF-8
+*.md text working-tree-encoding=UTF-8
+*.json text working-tree-encoding=UTF-8
+*.yml text working-tree-encoding=UTF-8
+*.conf text working-tree-encoding=UTF-8

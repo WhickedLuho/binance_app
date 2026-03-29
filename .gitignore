@@ -1,0 +1,9 @@
+/vendor/
+/.idea/
+/.vscode/
+/.DS_Store
+/.env
+/storage/logs/*.log
+/storage/cache/*
+!/storage/cache/.gitignore
+
