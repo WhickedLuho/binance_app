@@ -23,7 +23,7 @@ final class SignalEngine
 
         $decision = $timeframeAnalysis[$decisionTimeframe] ?? reset($timeframeAnalysis);
         if (!is_array($decision)) {
-            return $this->emptySignal($symbol, $decisionTimeframe, 'Nem érhető el idősík-elemzés');
+            return $this->emptySignal($symbol, $decisionTimeframe, 'Timeframe analysis unavailable');
         }
 
         $triggerTimeframe = $this->firstConfiguredTimeframe(
@@ -62,10 +62,10 @@ final class SignalEngine
 
         $riskFlags = $decision['risk']['flags'];
         if ($confirmation !== null && $this->isOpposingBias($decision['bias'], $confirmation['bias'])) {
-            $riskFlags[] = 'Magasabb idősík ellentmond';
+            $riskFlags[] = 'Higher timeframe conflict';
         }
         if ($trigger !== null && $this->isOpposingBias($decision['bias'], $trigger['bias'])) {
-            $riskFlags[] = 'Trigger idősík ellentmond';
+            $riskFlags[] = 'Trigger timeframe conflict';
         }
 
         $riskPenalty = count($riskFlags) * 12;
@@ -119,12 +119,13 @@ final class SignalEngine
                     'atr_percent' => null,
                     'volume_ratio' => null,
                     'last_candle_change' => null,
+                    'candle_age_seconds' => null,
                 ],
                 'risk' => [
                     'allowed' => false,
-                    'flags' => ['Nincs elegendő gyertyaadat'],
+                    'flags' => ['Not enough candle data'],
                 ],
-                'reasons' => ['Még kevés a piaci adat ezen az idősíkon: ' . $timeframe],
+                'reasons' => ['Not enough market data on timeframe: ' . $timeframe],
             ];
         }
 
@@ -132,6 +133,8 @@ final class SignalEngine
         $volumes = $this->indicators->volumes($candles);
         $lastCandle = $candles[array_key_last($candles)];
         $lastPrice = (float) $lastCandle['close'];
+        $closeTime = isset($lastCandle['close_time']) ? (int) $lastCandle['close_time'] : 0;
+        $candleAgeSeconds = $closeTime > 0 ? max(0, time() - (int) floor($closeTime / 1000)) : null;
 
         $ema20 = $this->indicators->ema($closes, 20);
         $ema50 = $this->indicators->ema($closes, 50);
@@ -155,60 +158,65 @@ final class SignalEngine
         if ($ema20 !== null && $ema50 !== null && $ema200 !== null) {
             if ($ema20 > $ema50 && $ema50 > $ema200 && $lastPrice > $ema20) {
                 $bullScore += $weights['trend'];
-                $reasons[] = sprintf('%s trend emelkedő', $timeframe);
+                $reasons[] = sprintf('%s rising trend', $timeframe);
             }
             if ($ema20 < $ema50 && $ema50 < $ema200 && $lastPrice < $ema20) {
                 $bearScore += $weights['trend'];
-                $reasons[] = sprintf('%s trend csökkenő', $timeframe);
+                $reasons[] = sprintf('%s falling trend', $timeframe);
             }
         }
 
         if ($rsi !== null) {
             if ($rsi >= 55 && $rsi <= 68) {
                 $bullScore += $weights['momentum'];
-                $reasons[] = sprintf('%s RSI emelkedést támogat', $timeframe);
+                $reasons[] = sprintf('%s RSI supports upside', $timeframe);
             }
             if ($rsi <= 45 && $rsi >= 32) {
                 $bearScore += $weights['momentum'];
-                $reasons[] = sprintf('%s RSI esést támogat', $timeframe);
+                $reasons[] = sprintf('%s RSI supports downside', $timeframe);
             }
         }
 
         if (($macd['histogram'] ?? null) !== null) {
             if ($macd['histogram'] > 0) {
                 $bullScore += $weights['macd'];
-                $reasons[] = sprintf('%s MACD pozitív', $timeframe);
+                $reasons[] = sprintf('%s MACD positive', $timeframe);
             }
             if ($macd['histogram'] < 0) {
                 $bearScore += $weights['macd'];
-                $reasons[] = sprintf('%s MACD negatív', $timeframe);
+                $reasons[] = sprintf('%s MACD negative', $timeframe);
             }
         }
 
         if ($volumeRatio >= 1.05) {
             if ($recentChange >= 0) {
                 $bullScore += $weights['volume'];
-                $reasons[] = sprintf('%s volumen a vevőket erősíti', $timeframe);
+                $reasons[] = sprintf('%s volume supports buyers', $timeframe);
             } else {
                 $bearScore += $weights['volume'];
-                $reasons[] = sprintf('%s volumen az eladókat erősíti', $timeframe);
+                $reasons[] = sprintf('%s volume supports sellers', $timeframe);
             }
         }
 
         if ($structureMove > 0.6) {
             $bullScore += $weights['structure'];
-            $reasons[] = sprintf('%s struktúra emelkedő', $timeframe);
+            $reasons[] = sprintf('%s structure rising', $timeframe);
         }
         if ($structureMove < -0.6) {
             $bearScore += $weights['structure'];
-            $reasons[] = sprintf('%s struktúra csökkenő', $timeframe);
+            $reasons[] = sprintf('%s structure falling', $timeframe);
         }
 
         $risk = $this->riskFilter->evaluate([
             'atr_percent' => $atrPercent,
             'volume_ratio' => $volumeRatio,
             'last_candle_change' => $recentChange,
+            'candle_age_seconds' => $candleAgeSeconds,
         ]);
+
+        if (in_array('Cooldown active', $risk['flags'], true)) {
+            $reasons[] = sprintf('%s cooldown still active', $timeframe);
+        }
 
         return [
             'timeframe' => $timeframe,
@@ -226,6 +234,7 @@ final class SignalEngine
                 'volume_ratio' => $volumeRatio,
                 'last_candle_change' => $recentChange,
                 'structure_move' => $structureMove,
+                'candle_age_seconds' => $candleAgeSeconds,
             ],
             'risk' => $risk,
             'reasons' => $reasons,
@@ -244,33 +253,41 @@ final class SignalEngine
 
     private function determineMarketRegime(array $decision, ?array $confirmation, int $bullScore, int $bearScore, array $riskFlags): string
     {
-        if (($decision['metrics']['atr_percent'] ?? 0.0) > (float) $this->strategyConfig['max_atr_percent']) {
-            return 'MAGAS_VOLATILITÁS';
+        if (in_array('Cooldown active', $riskFlags, true)) {
+            return 'COOLDOWN';
         }
 
-        if (in_array('Magasabb idősík ellentmond', $riskFlags, true)) {
-            return 'GYENGE_STRUKTÚRA';
+        if (($decision['metrics']['atr_percent'] ?? 0.0) > (float) $this->strategyConfig['max_atr_percent']) {
+            return 'HIGH_VOLATILITY';
+        }
+
+        if (in_array('Higher timeframe conflict', $riskFlags, true)) {
+            return 'WEAK_STRUCTURE';
         }
 
         if ($decision['bias'] === 'BULLISH' && ($confirmation === null || $confirmation['bias'] !== 'BEARISH')) {
-            return 'EMELKEDŐ_TREND';
+            return 'UPTREND';
         }
 
         if ($decision['bias'] === 'BEARISH' && ($confirmation === null || $confirmation['bias'] !== 'BULLISH')) {
-            return 'CSÖKKENŐ_TREND';
+            return 'DOWNTREND';
         }
 
         if (abs($bullScore - $bearScore) < 12) {
-            return 'OLDALAZÁS';
+            return 'RANGE';
         }
 
-        return 'GYENGE_STRUKTÚRA';
+        return 'WEAK_STRUCTURE';
     }
 
     private function determineAction(array $decision, ?array $trigger, ?array $confirmation, int $bullScore, int $bearScore, int $scoreGap, int $confidence, array $riskFlags): string
     {
         $minConfidence = (int) $this->strategyConfig['min_confidence'];
         $spotConfidence = (int) ($this->strategyConfig['spot_confidence'] ?? 58);
+
+        if (in_array('Cooldown active', $riskFlags, true)) {
+            return 'NO_TRADE';
+        }
 
         if ($decision['bias'] === 'NEUTRAL' || $scoreGap < 12) {
             return 'NO_TRADE';
@@ -330,7 +347,7 @@ final class SignalEngine
         return [
             'symbol' => $symbol,
             'interval' => $interval,
-            'market_regime' => 'HIBA',
+            'market_regime' => 'ERROR',
             'action' => 'NO_TRADE',
             'direction' => 'NO_TRADE',
             'price' => 0.0,
@@ -342,7 +359,7 @@ final class SignalEngine
             'risk_penalty' => 100,
             'risk' => [
                 'allowed' => false,
-                'flags' => ['A signal motor hibát jelzett'],
+                'flags' => ['Signal engine error'],
             ],
             'metrics' => [
                 'ema20' => null,
@@ -353,6 +370,7 @@ final class SignalEngine
                 'atr_percent' => null,
                 'volume_ratio' => null,
                 'last_candle_change' => null,
+                'candle_age_seconds' => null,
             ],
             'timeframes' => [],
             'reasons' => [$reason],

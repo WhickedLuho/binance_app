@@ -9,7 +9,10 @@ if (function_exists('mb_internal_encoding')) {
     mb_internal_encoding('UTF-8');
 }
 
-date_default_timezone_set('Europe/Budapest');
+$appConfigFile = __DIR__ . '/../config/app.php';
+$appConfig = is_file($appConfigFile) ? require $appConfigFile : [];
+$timezone = is_array($appConfig) ? (string) ($appConfig['timezone'] ?? 'UTC') : 'UTC';
+date_default_timezone_set($timezone !== '' ? $timezone : 'UTC');
 
 $autoload = __DIR__ . '/../vendor/autoload.php';
 if (file_exists($autoload)) {
@@ -43,5 +46,5 @@ try {
 } catch (Throwable $throwable) {
     http_response_code(500);
     header('Content-Type: text/html; charset=utf-8');
-    echo '<h1>500</h1><p>Belső szerverhiba történt.</p>';
+    echo '<h1>500</h1><p>Internal server error.</p>';
 }

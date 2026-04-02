@@ -7,6 +7,8 @@ return [
     'trigger_timeframe' => '15m',
     'analysis_timeframes' => [
         '15m',
+        '1h',
+        '2h'
     ],
     'prediction_timeframes' => [
         '15m',

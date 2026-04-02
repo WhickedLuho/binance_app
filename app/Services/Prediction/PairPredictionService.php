@@ -7,6 +7,8 @@ namespace App\Services\Prediction;
 use App\Core\Config;
 use App\Services\Binance\BinanceApiClient;
 use App\Services\Strategy\IndicatorService;
+use DateTimeImmutable;
+use DateTimeZone;
 
 final class PairPredictionService
 {
@@ -31,31 +33,25 @@ final class PairPredictionService
         $currentPrice = (float) ($analysis[$timeframes[0]]['price'] ?? 0.0);
         $directionScore = $this->directionScore($analysis);
         $bias = $this->resolveBias($directionScore);
-        [$supportZoneLow, $supportZoneHigh] = $this->nearestSupportZone($analysis, $currentPrice);
-        [$resistanceZoneLow, $resistanceZoneHigh] = $this->nearestResistanceZone($analysis, $currentPrice);
+        $supportZone = $this->buildZone($analysis, $currentPrice, 'support');
+        $resistanceZone = $this->buildZone($analysis, $currentPrice, 'resistance');
         $atrMove = $this->averageAtrMove($analysis, $currentPrice);
 
-        $shortScenario = $this->buildShortScenario($currentPrice, $supportZoneLow, $supportZoneHigh, $resistanceZoneHigh, $atrMove);
-        $longScenario = $this->buildLongScenario($currentPrice, $supportZoneLow, $resistanceZoneLow, $resistanceZoneHigh, $atrMove);
-        $neutralScenario = $this->buildNeutralScenario($supportZoneHigh, $resistanceZoneLow);
+        $shortScenario = $this->buildShortScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
+        $longScenario = $this->buildLongScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
+        $neutralScenario = $this->buildNeutralScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
 
         return [
             'symbol' => $symbol,
-            'generated_at' => gmdate(DATE_ATOM),
+            'generated_at' => $this->nowAtom(),
             'current_price' => round($currentPrice, 8),
             'bias' => $bias,
             'confidence' => min(100, abs($directionScore)),
             'summary' => $this->buildSummary($bias, $shortScenario, $longScenario, $neutralScenario),
             'timeframes' => $analysis,
             'zones' => [
-                'support' => [
-                    'low' => $supportZoneLow,
-                    'high' => $supportZoneHigh,
-                ],
-                'resistance' => [
-                    'low' => $resistanceZoneLow,
-                    'high' => $resistanceZoneHigh,
-                ],
+                'support' => $supportZone,
+                'resistance' => $resistanceZone,
             ],
             'scenarios' => [
                 'short' => $shortScenario,
@@ -98,6 +94,8 @@ final class PairPredictionService
             'support' => $support,
             'resistance' => $resistance,
             'momentum_percent' => $momentum,
+            'support_levels' => $this->extractPivotLevels($candles, $price, 'support'),
+            'resistance_levels' => $this->extractPivotLevels($candles, $price, 'resistance'),
         ];
     }
 
@@ -163,9 +161,49 @@ final class PairPredictionService
         return $candidates[0] ?? null;
     }
 
+    private function extractPivotLevels(array $candles, float $price, string $type): array
+    {
+        if (count($candles) < 5) {
+            return [];
+        }
+
+        $slice = array_slice($candles, -120);
+        $levels = [];
+
+        for ($index = 2, $count = count($slice) - 2; $index < $count; $index++) {
+            $current = $slice[$index];
+            $prevOne = $slice[$index - 1];
+            $prevTwo = $slice[$index - 2];
+            $nextOne = $slice[$index + 1];
+            $nextTwo = $slice[$index + 2];
+
+            if ($type === 'support') {
+                $value = (float) $current['low'];
+                $isPivot = $value <= (float) $prevOne['low']
+                    && $value <= (float) $prevTwo['low']
+                    && $value <= (float) $nextOne['low']
+                    && $value <= (float) $nextTwo['low']
+                    && $value <= $price;
+            } else {
+                $value = (float) $current['high'];
+                $isPivot = $value >= (float) $prevOne['high']
+                    && $value >= (float) $prevTwo['high']
+                    && $value >= (float) $nextOne['high']
+                    && $value >= (float) $nextTwo['high']
+                    && $value >= $price;
+            }
+
+            if ($isPivot) {
+                $levels[] = round($value, 8);
+            }
+        }
+
+        return array_values(array_unique($levels));
+    }
+
     private function directionScore(array $analysis): int
     {
-        $weights = ['15m' => 20, '1h' => 35, '4h' => 45];
+        $weights = $this->timeframeWeights(array_keys($analysis));
         $score = 0;
 
         foreach ($analysis as $timeframe => $row) {
@@ -178,6 +216,49 @@ final class PairPredictionService
         }
 
         return $score;
+    }
+
+    private function timeframeWeights(array $timeframes): array
+    {
+        $durations = [];
+        $total = 0;
+
+        foreach ($timeframes as $timeframe) {
+            $seconds = $this->timeframeSeconds((string) $timeframe);
+            $durations[$timeframe] = $seconds;
+            $total += $seconds;
+        }
+
+        if ($total <= 0) {
+            $equal = $timeframes === [] ? 0 : (int) round(100 / count($timeframes));
+
+            return array_fill_keys($timeframes, $equal);
+        }
+
+        $weights = [];
+        foreach ($durations as $timeframe => $seconds) {
+            $weights[$timeframe] = max(10, (int) round(($seconds / $total) * 100));
+        }
+
+        return $weights;
+    }
+
+    private function timeframeSeconds(string $timeframe): int
+    {
+        if (!preg_match('/^(\d+)(m|h|d|w)$/', $timeframe, $matches)) {
+            return 0;
+        }
+
+        $value = (int) $matches[1];
+        $unit = $matches[2];
+
+        return match ($unit) {
+            'm' => $value * 60,
+            'h' => $value * 3600,
+            'd' => $value * 86400,
+            'w' => $value * 604800,
+            default => 0,
+        };
     }
 
     private function resolveBias(int $directionScore): string
@@ -207,82 +288,151 @@ final class PairPredictionService
         return $price * ((array_sum($percents) / count($percents)) / 100);
     }
 
-    private function nearestSupportZone(array $analysis, float $price): array
+    private function buildZone(array $analysis, float $price, string $type): array
     {
-        $levels = array_values(array_filter(
-            array_map(static fn (array $row): ?float => $row['support'], $analysis),
-            static fn (?float $value): bool => $value !== null
-        ));
+        $levels = [];
 
-        if ($levels === []) {
-            return [round($price * 0.96, 8), round($price * 0.98, 8)];
+        foreach ($analysis as $row) {
+            $singleLevel = $type === 'support' ? ($row['support'] ?? null) : ($row['resistance'] ?? null);
+            if ($singleLevel !== null) {
+                $levels[] = (float) $singleLevel;
+            }
+
+            $extraLevels = $type === 'support' ? ($row['support_levels'] ?? []) : ($row['resistance_levels'] ?? []);
+            foreach ($extraLevels as $level) {
+                $levels[] = (float) $level;
+            }
         }
 
-        sort($levels);
+        $clusters = $this->clusterLevels($levels, $price);
+        if ($clusters !== []) {
+            usort($clusters, function (array $left, array $right) use ($price, $type): int {
+                $leftReference = $type === 'support' ? $left['high'] : $left['low'];
+                $rightReference = $type === 'support' ? $right['high'] : $right['low'];
+                $leftDistance = abs($price - $leftReference);
+                $rightDistance = abs($price - $rightReference);
 
-        return [round((float) $levels[0], 8), round((float) $levels[array_key_last($levels)], 8)];
-    }
+                if ($leftDistance === $rightDistance) {
+                    return $right['strength'] <=> $left['strength'];
+                }
 
-    private function nearestResistanceZone(array $analysis, float $price): array
-    {
-        $levels = array_values(array_filter(
-            array_map(static fn (array $row): ?float => $row['resistance'], $analysis),
-            static fn (?float $value): bool => $value !== null
-        ));
+                return $leftDistance <=> $rightDistance;
+            });
 
-        if ($levels === []) {
-            return [round($price * 1.02, 8), round($price * 1.04, 8)];
+            $selected = $clusters[0];
+
+            return [
+                'low' => round((float) $selected['low'], 8),
+                'high' => round((float) $selected['high'], 8),
+                'strength' => (int) $selected['strength'],
+            ];
         }
 
-        sort($levels);
-
-        return [round((float) $levels[0], 8), round((float) $levels[array_key_last($levels)], 8)];
+        return $type === 'support'
+            ? [
+                'low' => round($price * 0.96, 8),
+                'high' => round($price * 0.98, 8),
+                'strength' => 0,
+            ]
+            : [
+                'low' => round($price * 1.02, 8),
+                'high' => round($price * 1.04, 8),
+                'strength' => 0,
+            ];
     }
 
-    private function buildShortScenario(float $price, float $supportLow, float $supportHigh, float $resistanceHigh, float $atrMove): array
+    private function clusterLevels(array $levels, float $price): array
     {
-        $target = min($supportHigh, $price - (1.8 * $atrMove));
-        $stop = max($resistanceHigh, $price + (1.1 * $atrMove));
+        $filtered = array_values(array_filter($levels, static fn (float $level): bool => $level > 0));
+        if ($filtered === []) {
+            return [];
+        }
+
+        sort($filtered);
+        $tolerance = max($price * 0.0025, 0.00000001);
+        $clusters = [];
+        $current = null;
+
+        foreach ($filtered as $level) {
+            if ($current === null) {
+                $current = ['low' => $level, 'high' => $level, 'levels' => [$level]];
+                continue;
+            }
+
+            if (abs($level - $current['high']) <= $tolerance) {
+                $current['high'] = $level;
+                $current['levels'][] = $level;
+                continue;
+            }
+
+            $clusters[] = $current;
+            $current = ['low' => $level, 'high' => $level, 'levels' => [$level]];
+        }
+
+        if ($current !== null) {
+            $clusters[] = $current;
+        }
+
+        return array_map(static function (array $cluster): array {
+            $cluster['strength'] = count($cluster['levels']);
+            unset($cluster['levels']);
+
+            return $cluster;
+        }, $clusters);
+    }
+
+    private function buildShortScenario(float $price, array $supportZone, array $resistanceZone, float $atrMove): array
+    {
+        $target = min((float) $supportZone['high'], $price - (1.6 * $atrMove));
+        $stop = max((float) $resistanceZone['high'], $price + (1.15 * $atrMove));
 
         return [
             'entry' => round($price, 8),
             'target_zone' => [
-                'low' => round(min($supportLow, $target - ($atrMove * 0.4)), 8),
-                'high' => round(max($supportHigh, $target), 8),
+                'low' => round(min((float) $supportZone['low'], $target - ($atrMove * 0.35)), 8),
+                'high' => round(max((float) $supportZone['high'], $target), 8),
             ],
             'suggested_take_profit' => round($target, 8),
             'invalidation' => round($stop, 8),
             'reward_percent' => round($this->distancePercent($price, $target), 2),
             'risk_percent' => round($this->distancePercent($price, $stop), 2),
-            'summary' => 'A bearish folytatás akkor erős, ha az ár gyorsulva közelít a támasz zóna felé.',
+            'summary' => 'Bearish continuation is strongest when price drifts into fresh support and fails to reclaim the resistance cluster.',
         ];
     }
 
-    private function buildLongScenario(float $price, float $supportHigh, float $resistanceLow, float $resistanceHigh, float $atrMove): array
+    private function buildLongScenario(float $price, array $supportZone, array $resistanceZone, float $atrMove): array
     {
-        $target = max($resistanceLow, $price + (1.8 * $atrMove));
-        $stop = min($supportHigh, $price - (1.1 * $atrMove));
+        $target = max((float) $resistanceZone['low'], $price + (1.6 * $atrMove));
+        $stop = min((float) $supportZone['low'], $price - (1.15 * $atrMove));
 
         return [
             'entry' => round($price, 8),
             'target_zone' => [
-                'low' => round(min($resistanceLow, $target), 8),
-                'high' => round(max($resistanceHigh, $target + ($atrMove * 0.4)), 8),
+                'low' => round(min((float) $resistanceZone['low'], $target), 8),
+                'high' => round(max((float) $resistanceZone['high'], $target + ($atrMove * 0.35)), 8),
             ],
             'suggested_take_profit' => round($target, 8),
             'invalidation' => round($stop, 8),
             'reward_percent' => round($this->distancePercent($price, $target), 2),
             'risk_percent' => round($this->distancePercent($price, $stop), 2),
-            'summary' => 'A bullish folytatás akkor erős, ha az ár a közeli ellenállás fölé tud zárni.',
+            'summary' => 'Bullish continuation is strongest when price clears the nearest resistance cluster and holds above it.',
         ];
     }
 
-    private function buildNeutralScenario(float $supportHigh, float $resistanceLow): array
+    private function buildNeutralScenario(float $price, array $supportZone, array $resistanceZone, float $atrMove): array
     {
+        $rangeLow = min((float) $supportZone['high'], $price - ($atrMove * 0.5));
+        $rangeHigh = max((float) $resistanceZone['low'], $price + ($atrMove * 0.5));
+
+        if ($rangeLow > $rangeHigh) {
+            $rangeLow = $price - $atrMove;
+            $rangeHigh = $price + $atrMove;
+        }
+
         return [
-            'range_low' => $supportHigh,
-            'range_high' => $resistanceLow,
-            'summary' => 'Oldalazó piacban nincs tiszta irány, ilyenkor a jó kockázat/hozam arány fontosabb, mint maga a signal.',
+            'range_low' => round($rangeLow, 8),
+            'range_high' => round($rangeHigh, 8),
+            'summary' => 'In range conditions, reactions between the zone edges matter more than the first breakout attempt.',
         ];
     }
 
@@ -290,15 +440,15 @@ final class PairPredictionService
     {
         return match ($bias) {
             'BEARISH' => sprintf(
-                'A fő forgatókönyv jelenleg bearish: a defenzív short take profit zóna nagyjából %s körül kereshető.',
+                'Primary scenario is bearish, with the nearest target zone forming around %s.',
                 number_format((float) $shortScenario['suggested_take_profit'], 4, '.', ' ')
             ),
             'BULLISH' => sprintf(
-                'A fő forgatókönyv jelenleg bullish: a defenzív long take profit zóna nagyjából %s körül kereshető.',
+                'Primary scenario is bullish, with the nearest target zone forming around %s.',
                 number_format((float) $longScenario['suggested_take_profit'], 4, '.', ' ')
             ),
             default => sprintf(
-                'A piac inkább oldalazó, a várt sáv nagyjából %s - %s között lehet.',
+                'Market structure is mostly range-bound, with an expected band around %s - %s.',
                 number_format((float) $neutralScenario['range_low'], 4, '.', ' '),
                 number_format((float) $neutralScenario['range_high'], 4, '.', ' ')
             ),
@@ -308,5 +458,12 @@ final class PairPredictionService
     private function distancePercent(float $from, float $to): float
     {
         return abs($this->indicators->percentChange($from, $to));
+    }
+
+    private function nowAtom(): string
+    {
+        $timezone = (string) $this->config->get('app.timezone', 'UTC');
+
+        return (new DateTimeImmutable('now', new DateTimeZone($timezone !== '' ? $timezone : 'UTC')))->format(DATE_ATOM);
     }
 }

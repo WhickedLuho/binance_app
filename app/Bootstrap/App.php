@@ -31,8 +31,11 @@ final class App
     public function run(): void
     {
         $container = new Container();
+        $config = new Config($this->configPath);
+        $timezone = (string) $config->get('app.timezone', 'UTC');
+        date_default_timezone_set($timezone !== '' ? $timezone : 'UTC');
 
-        $container->set(Config::class, fn (): Config => new Config($this->configPath));
+        $container->set(Config::class, fn (): Config => $config);
         $container->set(View::class, fn (): View => new View($this->viewPath));
         $container->set(BinanceApiClient::class, fn (): BinanceApiClient => new BinanceApiClient());
         $container->set(IndicatorService::class, fn (): IndicatorService => new IndicatorService());
@@ -61,7 +64,8 @@ final class App
             $c->get(Config::class)
         ));
         $container->set(SignalController::class, fn (Container $c): SignalController => new SignalController(
-            $c->get(MarketAnalyzer::class)
+            $c->get(MarketAnalyzer::class),
+            $c->get(Config::class)
         ));
         $container->set(PredictionController::class, fn (Container $c): PredictionController => new PredictionController(
             $c->get(PairPredictionService::class),
