@@ -50,7 +50,7 @@ final class MarketAnalyzer
                     'risk_penalty' => 100,
                     'risk' => [
                         'allowed' => false,
-                        'flags' => ['A pár elemzése sikertelen'],
+                        'flags' => ['The pair analysis failed due to an error. Check the error message for details.'],
                     ],
                     'metrics' => [
                         'ema20' => null,

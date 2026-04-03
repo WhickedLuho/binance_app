@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Bootstrap;
 
+use App\Controllers\Api\PaperTradeController;
 use App\Controllers\Api\PredictionController;
 use App\Controllers\Api\SignalController;
 use App\Controllers\HomeController;
@@ -14,6 +15,8 @@ use App\Core\Router;
 use App\Core\View;
 use App\Services\Binance\BinanceApiClient;
 use App\Services\Market\MarketAnalyzer;
+use App\Services\PaperTrading\PaperTradeRepository;
+use App\Services\PaperTrading\PaperTradeService;
 use App\Services\Prediction\PairPredictionService;
 use App\Services\Strategy\IndicatorService;
 use App\Services\Strategy\RiskFilterService;
@@ -53,6 +56,14 @@ final class App
             $c->get(BinanceApiClient::class),
             $c->get(IndicatorService::class)
         ));
+        $container->set(PaperTradeRepository::class, fn (Container $c): PaperTradeRepository => new PaperTradeRepository(
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.storage_file', 'storage/cache/paper_trades.json'), '/')
+        ));
+        $container->set(PaperTradeService::class, fn (Container $c): PaperTradeService => new PaperTradeService(
+            $c->get(Config::class),
+            $c->get(BinanceApiClient::class),
+            $c->get(PaperTradeRepository::class)
+        ));
         $container->set(MarketAnalyzer::class, fn (Container $c): MarketAnalyzer => new MarketAnalyzer(
             $c->get(Config::class),
             $c->get(BinanceApiClient::class),
@@ -70,6 +81,9 @@ final class App
         $container->set(PredictionController::class, fn (Container $c): PredictionController => new PredictionController(
             $c->get(PairPredictionService::class),
             $c->get(Config::class)
+        ));
+        $container->set(PaperTradeController::class, fn (Container $c): PaperTradeController => new PaperTradeController(
+            $c->get(PaperTradeService::class)
         ));
 
         $router = new Router($container);

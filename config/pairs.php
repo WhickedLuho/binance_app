@@ -15,7 +15,7 @@ return [
         '1h',
         '4h',
     ],
-    'default_limit' => 200,
+    'default_limit' => 100,
     'refresh_seconds' => 5,
     'pairs' => [
         'BTCUSDT',
