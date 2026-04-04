@@ -634,7 +634,10 @@
             renderSignals(payload.signals);
             errorBox.hidden = true;
             lastUpdated.textContent = new Date().toLocaleString();
-            loadPaperTrading({ silent: true });
+            const hasOpenPaperPositions = Array.isArray(currentPaperTrading?.open_positions) && currentPaperTrading.open_positions.length > 0;
+            if (!paperPanel.hidden || hasOpenPaperPositions) {
+                loadPaperTrading({ silent: true });
+            }
         } catch (error) {
             errorBox.textContent = `Refresh failed: ${error.message}`;
             errorBox.hidden = false;

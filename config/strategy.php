@@ -8,9 +8,10 @@ return [
     'max_spike_percent' => 2.5,
     'cooldown_seconds' => 30,
     'timeframe_weights' => [
-        '1m' => 0.6,
-        '5m' => 1.0,
-        '15m' => 0.9,
+        '5m' => 0.8,
+        '15m' => 1.0,
+        '1h' => 1.25,
+        '4h' => 1.5,
     ],
     'weights' => [
         'trend' => 30,

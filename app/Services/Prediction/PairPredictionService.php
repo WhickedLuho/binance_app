@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Prediction;
 
 use App\Core\Config;
-use App\Services\Binance\BinanceApiClient;
-use App\Services\Strategy\IndicatorService;
+use App\Services\Market\MarketSnapshotService;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -14,32 +13,49 @@ final class PairPredictionService
 {
     public function __construct(
         private readonly Config $config,
-        private readonly BinanceApiClient $binance,
-        private readonly IndicatorService $indicators
+        private readonly MarketSnapshotService $snapshots
     ) {
     }
 
     public function predict(string $symbol): array
     {
         $timeframes = $this->predictionTimeframes();
-        $limit = (int) $this->config->get('pairs.default_limit', 200);
+        $limit = max(2, (int) $this->config->get('pairs.prediction_limit', $this->config->get('pairs.default_limit', 160)));
+        $snapshot = $this->snapshots->buildSymbolSnapshot($symbol, $timeframes, $limit);
 
         $analysis = [];
         foreach ($timeframes as $timeframe) {
-            $candles = $this->binance->getKlines($symbol, $timeframe, $limit);
-            $analysis[$timeframe] = $this->analyzeTimeframe($timeframe, $candles);
+            $analysis[$timeframe] = $this->analyzeTimeframe(
+                $timeframe,
+                is_array($snapshot['timeframes'][$timeframe] ?? null) ? $snapshot['timeframes'][$timeframe] : []
+            );
         }
 
-        $currentPrice = (float) ($analysis[$timeframes[0]]['price'] ?? 0.0);
-        $directionScore = $this->directionScore($analysis);
+        $quality = $this->summarizeQuality($analysis, $snapshot);
+        $validAnalysis = $this->readyTimeframes($analysis);
+        if ($validAnalysis === []) {
+            return $this->insufficientPrediction($symbol, $analysis, $quality);
+        }
+
+        $primaryTimeframe = $timeframes[0] ?? null;
+        $currentPrice = $primaryTimeframe !== null && !empty($analysis[$primaryTimeframe]['ready'])
+            ? (float) $analysis[$primaryTimeframe]['price']
+            : (float) reset($validAnalysis)['price'];
+
+        $directionScore = $this->directionScore($validAnalysis);
         $bias = $this->resolveBias($directionScore);
-        $supportZone = $this->buildZone($analysis, $currentPrice, 'support');
-        $resistanceZone = $this->buildZone($analysis, $currentPrice, 'resistance');
-        $atrMove = $this->averageAtrMove($analysis, $currentPrice);
+        $supportZone = $this->buildZone($validAnalysis, $currentPrice, 'support');
+        $resistanceZone = $this->buildZone($validAnalysis, $currentPrice, 'resistance');
+        $atrMove = $this->averageAtrMove($validAnalysis, $currentPrice);
 
         $shortScenario = $this->buildShortScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
         $longScenario = $this->buildLongScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
         $neutralScenario = $this->buildNeutralScenario($currentPrice, $supportZone, $resistanceZone, $atrMove);
+        $summary = $this->buildSummary($bias, $shortScenario, $longScenario, $neutralScenario);
+
+        if (!$quality['ready']) {
+            $summary = 'Partial market data. ' . $summary;
+        }
 
         return [
             'symbol' => $symbol,
@@ -47,7 +63,7 @@ final class PairPredictionService
             'current_price' => round($currentPrice, 8),
             'bias' => $bias,
             'confidence' => min(100, abs($directionScore)),
-            'summary' => $this->buildSummary($bias, $shortScenario, $longScenario, $neutralScenario),
+            'summary' => $summary,
             'timeframes' => $analysis,
             'zones' => [
                 'support' => $supportZone,
@@ -58,6 +74,7 @@ final class PairPredictionService
                 'long' => $longScenario,
                 'neutral' => $neutralScenario,
             ],
+            'data_quality' => $quality,
         ];
     }
 
@@ -72,21 +89,23 @@ final class PairPredictionService
         return $timeframes === [] ? ['15m', '1h', '4h'] : $timeframes;
     }
 
-    private function analyzeTimeframe(string $timeframe, array $candles): array
+    private function analyzeTimeframe(string $timeframe, array $snapshot): array
     {
-        $closes = $this->indicators->closes($candles);
-        $price = (float) ($candles[array_key_last($candles)]['close'] ?? 0.0);
-        $ema20 = $this->indicators->ema($closes, 20);
-        $ema50 = $this->indicators->ema($closes, 50);
-        $rsi = $this->indicators->rsi($closes, 14);
-        $atrPercent = $this->indicators->atrPercent($candles, 14);
-        $support = $this->nearestLevel($candles, $price, 'low');
-        $resistance = $this->nearestLevel($candles, $price, 'high');
-        $momentum = $this->recentMomentum($closes);
+        $metrics = is_array($snapshot['metrics'] ?? null) ? $snapshot['metrics'] : [];
+        $levels = is_array($snapshot['levels'] ?? null) ? $snapshot['levels'] : [];
+        $quality = is_array($snapshot['data_quality'] ?? null) ? $snapshot['data_quality'] : ['ready' => false, 'issues' => ['Snapshot data unavailable']];
+        $price = (float) ($snapshot['price'] ?? 0.0);
+        $ema20 = $metrics['ema20'] ?? null;
+        $ema50 = $metrics['ema50'] ?? null;
+        $rsi = $metrics['rsi14'] ?? null;
+        $atrPercent = $metrics['atr_percent'] ?? null;
+        $support = $levels['support'] ?? null;
+        $resistance = $levels['resistance'] ?? null;
+        $momentum = (float) ($metrics['momentum_percent'] ?? 0.0);
 
         return [
             'price' => round($price, 8),
-            'bias' => $this->timeframeBias($price, $ema20, $ema50, $rsi, $momentum),
+            'bias' => ($quality['ready'] ?? false) ? $this->timeframeBias($price, $ema20, $ema50, $rsi, $momentum) : 'UNAVAILABLE',
             'ema20' => $ema20,
             'ema50' => $ema50,
             'rsi14' => $rsi,
@@ -94,8 +113,10 @@ final class PairPredictionService
             'support' => $support,
             'resistance' => $resistance,
             'momentum_percent' => $momentum,
-            'support_levels' => $this->extractPivotLevels($candles, $price, 'support'),
-            'resistance_levels' => $this->extractPivotLevels($candles, $price, 'resistance'),
+            'support_levels' => $levels['support_levels'] ?? [],
+            'resistance_levels' => $levels['resistance_levels'] ?? [],
+            'ready' => (bool) ($quality['ready'] ?? false),
+            'issues' => array_values(array_unique(array_map('strval', $quality['issues'] ?? []))),
         ];
     }
 
@@ -131,74 +152,55 @@ final class PairPredictionService
         return $score >= 2 ? 'BULLISH' : ($score <= -2 ? 'BEARISH' : 'NEUTRAL');
     }
 
-    private function recentMomentum(array $closes): float
+    private function readyTimeframes(array $analysis): array
     {
-        if (count($closes) < 6) {
-            return 0.0;
-        }
-
-        $slice = array_slice($closes, -6);
-
-        return $this->indicators->percentChange((float) $slice[0], (float) $slice[array_key_last($slice)]);
+        return array_filter($analysis, static fn (array $row): bool => !empty($row['ready']) && (float) ($row['price'] ?? 0.0) > 0.0);
     }
 
-    private function nearestLevel(array $candles, float $price, string $field): ?float
+    private function summarizeQuality(array $analysis, array $snapshot): array
     {
-        $values = array_map(static fn (array $candle): float => (float) $candle[$field], array_slice($candles, -60));
+        $issues = [];
+        $readyCount = 0;
 
-        if ($values === []) {
-            return null;
+        foreach ($analysis as $row) {
+            if (!empty($row['ready'])) {
+                $readyCount++;
+            }
+            $issues = [...$issues, ...($row['issues'] ?? [])];
         }
 
-        if ($field === 'low') {
-            $candidates = array_values(array_filter($values, static fn (float $value): bool => $value <= $price));
-            rsort($candidates);
-        } else {
-            $candidates = array_values(array_filter($values, static fn (float $value): bool => $value >= $price));
-            sort($candidates);
-        }
+        $issues = [...$issues, ...(is_array($snapshot['meta']['issues'] ?? null) ? $snapshot['meta']['issues'] : [])];
+        $totalCount = count($analysis);
 
-        return $candidates[0] ?? null;
+        return [
+            'ready' => $totalCount > 0 && $readyCount === $totalCount,
+            'ready_timeframes' => $readyCount,
+            'total_timeframes' => $totalCount,
+            'issues' => array_values(array_unique(array_map('strval', $issues))),
+        ];
     }
 
-    private function extractPivotLevels(array $candles, float $price, string $type): array
+    private function insufficientPrediction(string $symbol, array $analysis, array $quality): array
     {
-        if (count($candles) < 5) {
-            return [];
-        }
-
-        $slice = array_slice($candles, -120);
-        $levels = [];
-
-        for ($index = 2, $count = count($slice) - 2; $index < $count; $index++) {
-            $current = $slice[$index];
-            $prevOne = $slice[$index - 1];
-            $prevTwo = $slice[$index - 2];
-            $nextOne = $slice[$index + 1];
-            $nextTwo = $slice[$index + 2];
-
-            if ($type === 'support') {
-                $value = (float) $current['low'];
-                $isPivot = $value <= (float) $prevOne['low']
-                    && $value <= (float) $prevTwo['low']
-                    && $value <= (float) $nextOne['low']
-                    && $value <= (float) $nextTwo['low']
-                    && $value <= $price;
-            } else {
-                $value = (float) $current['high'];
-                $isPivot = $value >= (float) $prevOne['high']
-                    && $value >= (float) $prevTwo['high']
-                    && $value >= (float) $nextOne['high']
-                    && $value >= (float) $nextTwo['high']
-                    && $value >= $price;
-            }
-
-            if ($isPivot) {
-                $levels[] = round($value, 8);
-            }
-        }
-
-        return array_values(array_unique($levels));
+        return [
+            'symbol' => $symbol,
+            'generated_at' => $this->nowAtom(),
+            'current_price' => 0.0,
+            'bias' => 'INSUFFICIENT_DATA',
+            'confidence' => 0,
+            'summary' => 'Prediction unavailable because the required closed market data is not ready yet.',
+            'timeframes' => $analysis,
+            'zones' => [
+                'support' => null,
+                'resistance' => null,
+            ],
+            'scenarios' => [
+                'short' => ['summary' => 'Not enough data for a bearish scenario.'],
+                'long' => ['summary' => 'Not enough data for a bullish scenario.'],
+                'neutral' => ['summary' => 'Not enough data for a range scenario.'],
+            ],
+            'data_quality' => $quality,
+        ];
     }
 
     private function directionScore(array $analysis): int
@@ -457,7 +459,11 @@ final class PairPredictionService
 
     private function distancePercent(float $from, float $to): float
     {
-        return abs($this->indicators->percentChange($from, $to));
+        if ($from == 0.0) {
+            return 0.0;
+        }
+
+        return abs((($to - $from) / $from) * 100);
     }
 
     private function nowAtom(): string

@@ -8,17 +8,21 @@ final class SignalEngine
 {
     public function __construct(
         private readonly array $strategyConfig,
-        private readonly array $pairsConfig,
-        private readonly IndicatorService $indicators,
-        private readonly RiskFilterService $riskFilter
+        private readonly array $pairsConfig
     ) {
     }
 
-    public function analyze(string $symbol, string $decisionTimeframe, array $candlesByTimeframe): array
+    public function analyze(string $symbol, string $decisionTimeframe, array $snapshot): array
     {
+        $timeframeSnapshots = $snapshot['timeframes'] ?? [];
         $timeframeAnalysis = [];
-        foreach ($candlesByTimeframe as $timeframe => $candles) {
-            $timeframeAnalysis[$timeframe] = $this->analyzeTimeframe((string) $timeframe, $candles);
+
+        foreach ($timeframeSnapshots as $timeframe => $timeframeSnapshot) {
+            if (!is_array($timeframeSnapshot)) {
+                continue;
+            }
+
+            $timeframeAnalysis[$timeframe] = $this->analyzeTimeframe((string) $timeframe, $timeframeSnapshot);
         }
 
         $decision = $timeframeAnalysis[$decisionTimeframe] ?? reset($timeframeAnalysis);
@@ -28,11 +32,11 @@ final class SignalEngine
 
         $triggerTimeframe = $this->firstConfiguredTimeframe(
             $timeframeAnalysis,
-            [(string) ($this->pairsConfig['trigger_timeframe'] ?? '1m')]
+            [(string) ($this->pairsConfig['trigger_timeframe'] ?? '5m')]
         );
         $confirmationTimeframe = $this->firstConfiguredTimeframe(
             $timeframeAnalysis,
-            [(string) ($this->pairsConfig['confirmation_timeframe'] ?? '15m')]
+            [(string) ($this->pairsConfig['confirmation_timeframe'] ?? '1h')]
         );
         $trigger = $triggerTimeframe !== null ? $timeframeAnalysis[$triggerTimeframe] : null;
         $confirmation = $confirmationTimeframe !== null ? $timeframeAnalysis[$confirmationTimeframe] : null;
@@ -42,17 +46,21 @@ final class SignalEngine
         $weightTotal = 0.0;
         $reasons = [];
         $timeframePayload = [];
+        $dataIssues = [];
+
         foreach ($timeframeAnalysis as $timeframe => $analysis) {
             $weight = (float) ($this->strategyConfig['timeframe_weights'][$timeframe] ?? 1.0);
             $weightedBull += $analysis['bull_score'] * $weight;
             $weightedBear += $analysis['bear_score'] * $weight;
             $weightTotal += $weight;
             $reasons = [...$reasons, ...$analysis['reasons']];
+            $dataIssues = [...$dataIssues, ...($analysis['data_quality']['issues'] ?? [])];
             $timeframePayload[$timeframe] = [
                 'bias' => $analysis['bias'],
                 'bull_score' => $analysis['bull_score'],
                 'bear_score' => $analysis['bear_score'],
                 'metrics' => $analysis['metrics'],
+                'data_quality' => $analysis['data_quality'],
             ];
         }
 
@@ -67,8 +75,11 @@ final class SignalEngine
         if ($trigger !== null && $this->isOpposingBias($decision['bias'], $trigger['bias'])) {
             $riskFlags[] = 'Trigger timeframe conflict';
         }
+        if (!($decision['data_quality']['ready'] ?? false)) {
+            $riskFlags[] = 'Decision timeframe data unavailable';
+        }
 
-        $riskPenalty = count($riskFlags) * 12;
+        $riskPenalty = count(array_values(array_unique($riskFlags))) * 12;
         if (!$decision['risk']['allowed']) {
             $riskPenalty += 12;
         }
@@ -92,18 +103,34 @@ final class SignalEngine
             'short_score' => $bearScore,
             'risk_penalty' => $riskPenalty,
             'risk' => [
-                'allowed' => $riskFlags === [],
+                'allowed' => array_values(array_unique($riskFlags)) === [],
                 'flags' => array_values(array_unique($riskFlags)),
             ],
             'metrics' => $decision['metrics'],
             'timeframes' => $timeframePayload,
             'reasons' => array_values(array_unique($reasons)),
+            'data_quality' => [
+                'ready' => (bool) ($decision['data_quality']['ready'] ?? false),
+                'issues' => array_values(array_unique($dataIssues)),
+            ],
         ];
     }
 
-    private function analyzeTimeframe(string $timeframe, array $candles): array
+    private function analyzeTimeframe(string $timeframe, array $snapshot): array
     {
-        if (count($candles) < 2) {
+        $metrics = is_array($snapshot['metrics'] ?? null) ? $snapshot['metrics'] : [];
+        $risk = is_array($snapshot['risk'] ?? null)
+            ? $snapshot['risk']
+            : ['allowed' => false, 'flags' => ['Snapshot risk data unavailable']];
+        $quality = is_array($snapshot['data_quality'] ?? null)
+            ? $snapshot['data_quality']
+            : ['ready' => false, 'issues' => ['Snapshot data quality unavailable']];
+        $lastPrice = (float) ($snapshot['price'] ?? 0.0);
+
+        if (!($quality['ready'] ?? false) || $lastPrice <= 0.0) {
+            $issues = array_values(array_unique(array_map('strval', $quality['issues'] ?? ['Market data unavailable'])));
+            $reasonText = $issues !== [] ? implode(', ', $issues) : 'Market data unavailable';
+
             return [
                 'timeframe' => $timeframe,
                 'price' => 0.0,
@@ -123,32 +150,24 @@ final class SignalEngine
                 ],
                 'risk' => [
                     'allowed' => false,
-                    'flags' => ['Not enough candle data'],
+                    'flags' => array_values(array_unique(['Not enough candle data', ...($risk['flags'] ?? [])])),
                 ],
-                'reasons' => ['Not enough market data on timeframe: ' . $timeframe],
+                'reasons' => [sprintf('%s data unavailable: %s', $timeframe, $reasonText)],
+                'data_quality' => [
+                    'ready' => false,
+                    'issues' => $issues,
+                ],
             ];
         }
 
-        $closes = $this->indicators->closes($candles);
-        $volumes = $this->indicators->volumes($candles);
-        $lastCandle = $candles[array_key_last($candles)];
-        $lastPrice = (float) $lastCandle['close'];
-        $closeTime = isset($lastCandle['close_time']) ? (int) $lastCandle['close_time'] : 0;
-        $candleAgeSeconds = $closeTime > 0 ? max(0, time() - (int) floor($closeTime / 1000)) : null;
-
-        $ema20 = $this->indicators->ema($closes, 20);
-        $ema50 = $this->indicators->ema($closes, 50);
-        $ema200 = $this->indicators->ema($closes, 200);
-        $rsi = $this->indicators->rsi($closes, 14);
-        $macd = $this->indicators->macd($closes);
-        $atrPercent = $this->indicators->atrPercent($candles, 14);
-        $avgVolume = $this->indicators->average(array_slice($volumes, -20));
-        $volumeRatio = $avgVolume > 0 ? $lastCandle['volume'] / $avgVolume : 0.0;
-        $recentChange = $this->indicators->percentChange((float) $candles[count($candles) - 2]['close'], $lastPrice);
-        $lookback = array_slice($closes, -10);
-        $structureMove = $lookback !== []
-            ? $this->indicators->percentChange((float) $lookback[0], (float) $lookback[array_key_last($lookback)])
-            : 0.0;
+        $ema20 = $metrics['ema20'] ?? null;
+        $ema50 = $metrics['ema50'] ?? null;
+        $ema200 = $metrics['ema200'] ?? null;
+        $rsi = $metrics['rsi14'] ?? null;
+        $macdHistogram = $metrics['macd_histogram'] ?? null;
+        $volumeRatio = (float) ($metrics['volume_ratio'] ?? 0.0);
+        $recentChange = (float) ($metrics['last_candle_change'] ?? 0.0);
+        $structureMove = (float) ($metrics['structure_move'] ?? 0.0);
 
         $weights = $this->strategyConfig['weights'];
         $bullScore = 0;
@@ -164,6 +183,8 @@ final class SignalEngine
                 $bearScore += $weights['trend'];
                 $reasons[] = sprintf('%s falling trend', $timeframe);
             }
+        } else {
+            $reasons[] = sprintf('%s trend baseline incomplete', $timeframe);
         }
 
         if ($rsi !== null) {
@@ -177,12 +198,12 @@ final class SignalEngine
             }
         }
 
-        if (($macd['histogram'] ?? null) !== null) {
-            if ($macd['histogram'] > 0) {
+        if ($macdHistogram !== null) {
+            if ($macdHistogram > 0) {
                 $bullScore += $weights['macd'];
                 $reasons[] = sprintf('%s MACD positive', $timeframe);
             }
-            if ($macd['histogram'] < 0) {
+            if ($macdHistogram < 0) {
                 $bearScore += $weights['macd'];
                 $reasons[] = sprintf('%s MACD negative', $timeframe);
             }
@@ -207,13 +228,6 @@ final class SignalEngine
             $reasons[] = sprintf('%s structure falling', $timeframe);
         }
 
-        $risk = $this->riskFilter->evaluate([
-            'atr_percent' => $atrPercent,
-            'volume_ratio' => $volumeRatio,
-            'last_candle_change' => $recentChange,
-            'candle_age_seconds' => $candleAgeSeconds,
-        ]);
-
         if (in_array('Cooldown active', $risk['flags'], true)) {
             $reasons[] = sprintf('%s cooldown still active', $timeframe);
         }
@@ -229,15 +243,22 @@ final class SignalEngine
                 'ema50' => $ema50,
                 'ema200' => $ema200,
                 'rsi14' => $rsi,
-                'macd_histogram' => $macd['histogram'],
-                'atr_percent' => $atrPercent,
-                'volume_ratio' => $volumeRatio,
-                'last_candle_change' => $recentChange,
-                'structure_move' => $structureMove,
-                'candle_age_seconds' => $candleAgeSeconds,
+                'macd_histogram' => $macdHistogram,
+                'atr_percent' => $metrics['atr_percent'] ?? null,
+                'volume_ratio' => $metrics['volume_ratio'] ?? null,
+                'last_candle_change' => $metrics['last_candle_change'] ?? null,
+                'structure_move' => $metrics['structure_move'] ?? null,
+                'candle_age_seconds' => $metrics['candle_age_seconds'] ?? null,
             ],
-            'risk' => $risk,
-            'reasons' => $reasons,
+            'risk' => [
+                'allowed' => (bool) ($risk['allowed'] ?? false),
+                'flags' => array_values(array_unique($risk['flags'] ?? [])),
+            ],
+            'reasons' => array_values(array_unique($reasons)),
+            'data_quality' => [
+                'ready' => true,
+                'issues' => array_values(array_unique(array_map('strval', $quality['issues'] ?? []))),
+            ],
         ];
     }
 
@@ -253,6 +274,10 @@ final class SignalEngine
 
     private function determineMarketRegime(array $decision, ?array $confirmation, int $bullScore, int $bearScore, array $riskFlags): string
     {
+        if (!($decision['data_quality']['ready'] ?? false)) {
+            return 'ERROR';
+        }
+
         if (in_array('Cooldown active', $riskFlags, true)) {
             return 'COOLDOWN';
         }
@@ -285,6 +310,10 @@ final class SignalEngine
         $minConfidence = (int) $this->strategyConfig['min_confidence'];
         $spotConfidence = (int) ($this->strategyConfig['spot_confidence'] ?? 58);
 
+        if (!($decision['data_quality']['ready'] ?? false)) {
+            return 'NO_TRADE';
+        }
+
         if (in_array('Cooldown active', $riskFlags, true)) {
             return 'NO_TRADE';
         }
@@ -293,7 +322,7 @@ final class SignalEngine
             return 'NO_TRADE';
         }
 
-        if (count($riskFlags) >= 2) {
+        if (count(array_values(array_unique($riskFlags))) >= 2) {
             return 'NO_TRADE';
         }
 
@@ -374,6 +403,10 @@ final class SignalEngine
             ],
             'timeframes' => [],
             'reasons' => [$reason],
+            'data_quality' => [
+                'ready' => false,
+                'issues' => [$reason],
+            ],
         ];
     }
 }

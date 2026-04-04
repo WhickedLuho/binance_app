@@ -29,7 +29,7 @@ final class PredictionController
         if ($symbol === '' || !in_array($symbol, $allowedPairs, true)) {
             return Response::json([
                 'status' => 'error',
-                'message' => 'Ismeretlen vagy nem támogatott szimbólum.',
+                'message' => 'Ismeretlen vagy nem tamogatott szimbolum.',
             ], 422);
         }
 

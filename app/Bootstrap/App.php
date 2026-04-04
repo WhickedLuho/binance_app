@@ -15,6 +15,7 @@ use App\Core\Router;
 use App\Core\View;
 use App\Services\Binance\BinanceApiClient;
 use App\Services\Market\MarketAnalyzer;
+use App\Services\Market\MarketSnapshotService;
 use App\Services\PaperTrading\PaperTradeRepository;
 use App\Services\PaperTrading\PaperTradeService;
 use App\Services\Prediction\PairPredictionService;
@@ -45,16 +46,19 @@ final class App
         $container->set(RiskFilterService::class, fn (Container $c): RiskFilterService => new RiskFilterService(
             $c->get(Config::class)->get('strategy')
         ));
-        $container->set(SignalEngine::class, fn (Container $c): SignalEngine => new SignalEngine(
-            $c->get(Config::class)->get('strategy'),
-            $c->get(Config::class)->get('pairs'),
+        $container->set(MarketSnapshotService::class, fn (Container $c): MarketSnapshotService => new MarketSnapshotService(
+            $c->get(Config::class),
+            $c->get(BinanceApiClient::class),
             $c->get(IndicatorService::class),
             $c->get(RiskFilterService::class)
         ));
+        $container->set(SignalEngine::class, fn (Container $c): SignalEngine => new SignalEngine(
+            $c->get(Config::class)->get('strategy'),
+            $c->get(Config::class)->get('pairs')
+        ));
         $container->set(PairPredictionService::class, fn (Container $c): PairPredictionService => new PairPredictionService(
             $c->get(Config::class),
-            $c->get(BinanceApiClient::class),
-            $c->get(IndicatorService::class)
+            $c->get(MarketSnapshotService::class)
         ));
         $container->set(PaperTradeRepository::class, fn (Container $c): PaperTradeRepository => new PaperTradeRepository(
             $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.storage_file', 'storage/cache/paper_trades.json'), '/')
@@ -66,7 +70,7 @@ final class App
         ));
         $container->set(MarketAnalyzer::class, fn (Container $c): MarketAnalyzer => new MarketAnalyzer(
             $c->get(Config::class),
-            $c->get(BinanceApiClient::class),
+            $c->get(MarketSnapshotService::class),
             $c->get(SignalEngine::class)
         ));
         $container->set(HomeController::class, fn (Container $c): HomeController => new HomeController(
