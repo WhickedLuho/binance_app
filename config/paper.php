@@ -10,4 +10,5 @@ return [
     'history_limit' => 30,
     'storage_file' => 'storage/cache/paper_trades.json',
     'automation_storage_file' => 'storage/cache/auto_trade_settings.json',
+    'automation_lock_file' => 'storage/cache/auto_trade_heartbeat.lock',
 ];

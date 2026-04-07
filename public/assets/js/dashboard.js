@@ -9,6 +9,7 @@
         formatNumber,
         formatZone,
         renderAutomationPairsMarkup,
+        renderAutomationPositionsMarkup,
         renderAutomationSummaryMarkup,
         renderHistoryMarkup,
         renderOpenPositionsMarkup,
@@ -57,8 +58,17 @@
     const automationPositionType = document.getElementById('automation-position-type');
     const automationMarginType = document.getElementById('automation-margin-type');
     const automationLeverage = document.getElementById('automation-leverage');
+    const automationMinProfitSpot = document.getElementById('automation-min-profit-spot');
+    const automationMinProfitLong = document.getElementById('automation-min-profit-long');
+    const automationMinProfitShort = document.getElementById('automation-min-profit-short');
+    const automationMaxPredictionAtr = document.getElementById('automation-max-prediction-atr');
+    const automationMaxCandleChange = document.getElementById('automation-max-candle-change');
+    const automationCooldownMinutes = document.getElementById('automation-cooldown-minutes');
+    const automationCloseOnTakeProfit = document.getElementById('automation-close-on-take-profit');
+    const automationCloseOnStopLoss = document.getElementById('automation-close-on-stop-loss');
     const automationSummary = document.getElementById('automation-summary');
     const automationPairs = document.getElementById('automation-pairs');
+    const automationOpenPositions = document.getElementById('automation-open-positions');
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionTitle = document.getElementById('prediction-title');
     const predictionSummary = document.getElementById('prediction-summary');
@@ -76,7 +86,6 @@
     const predictionTabs = document.getElementById('prediction-tabs');
     const predictionTabButtons = Array.from(document.querySelectorAll('[data-tab]'));
     const predictionTabPanels = Array.from(document.querySelectorAll('[data-tab-panel]'));
-    const paperPanel = document.getElementById('paper-panel');
     const paperStatus = document.getElementById('paper-status');
     const paperForm = document.getElementById('paper-form');
     const paperSubmitButton = paperForm?.querySelector('button[type="submit"]');
@@ -104,9 +113,9 @@
     let paperTabEnabled = false;
     let currentPaperTrading = null;
     let automationInFlight = false;
+    let automationHeartbeatInFlight = false;
     let currentAutomationSettings = null;
     const automationPanelStorageKey = 'dashboard.automation-panel';
-
 
     const readAutomationPanelExpanded = () => {
         try {
@@ -128,6 +137,12 @@
             // Ignore storage failures and keep the in-memory UI state.
         }
     };
+
+    const extractAutoPositions = (paperTrading) => {
+        const positions = Array.isArray(paperTrading?.open_positions) ? paperTrading.open_positions : [];
+        return positions.filter((position) => position.source === 'AUTO_PREDICTION');
+    };
+
     const predictionDefaults = (prediction, positionType) => {
         const currentPrice = Number(prediction?.current_price || 0);
         const longScenario = prediction?.scenarios?.long || {};
@@ -213,6 +228,14 @@
             default_position_type: automationPositionType.value,
             default_margin_type: automationMarginType.value,
             default_leverage: Number(automationLeverage.value || 1),
+            min_profit_trigger_percent_spot: Number(automationMinProfitSpot.value || 0),
+            min_profit_trigger_percent_long: Number(automationMinProfitLong.value || 0),
+            min_profit_trigger_percent_short: Number(automationMinProfitShort.value || 0),
+            max_prediction_atr_percent: Number(automationMaxPredictionAtr.value || 0),
+            max_signal_candle_change_percent: Number(automationMaxCandleChange.value || 0),
+            cooldown_minutes: Number(automationCooldownMinutes.value || 0),
+            close_on_take_profit: automationCloseOnTakeProfit.checked,
+            close_on_stop_loss: automationCloseOnStopLoss.checked,
             pairs: pairDraft,
         };
     };
@@ -275,6 +298,41 @@
             },
         };
     };
+    const syncPredictionTabs = () => {
+        predictionTabButtons.forEach((button) => {
+            const isPaperTab = button.dataset.tab === 'paper';
+            const isDisabled = isPaperTab && !paperTabEnabled;
+            const isActive = !isDisabled && button.dataset.tab === activePredictionTab;
+
+            button.classList.toggle('is-active', isActive);
+            button.classList.toggle('is-disabled', isDisabled);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.setAttribute('tabindex', isActive ? '0' : '-1');
+            button.disabled = isDisabled;
+        });
+
+        predictionTabPanels.forEach((panel) => {
+            const isPaperPanel = panel.dataset.tabPanel === 'paper';
+            panel.hidden = panel.dataset.tabPanel !== activePredictionTab || (isPaperPanel && !paperTabEnabled);
+        });
+    };
+
+    const updatePaperTabAvailability = () => {
+        paperTabEnabled = Boolean(currentPrediction) || Boolean(currentPaperTrading?.open_positions?.length);
+        if (!paperTabEnabled && activePredictionTab === 'paper') {
+            activePredictionTab = 'prediction';
+        }
+        syncPredictionTabs();
+    };
+
+    const setActivePredictionTab = (tabName) => {
+        activePredictionTab = tabName === 'paper' && paperTabEnabled ? 'paper' : 'prediction';
+        syncPredictionTabs();
+    };
+
+    const renderAutomationOpenPositions = (paperTrading) => {
+        setHtmlIfChanged(automationOpenPositions, renderAutomationPositionsMarkup(extractAutoPositions(paperTrading)));
+    };
 
     const renderAutomationSettings = (settings) => {
         currentAutomationSettings = settings;
@@ -284,11 +342,19 @@
         automationPositionType.value = settings?.default_position_type || 'FUTURES_LONG';
         automationMarginType.value = settings?.default_margin_type || 'ISOLATED';
         automationLeverage.value = settings?.default_leverage ?? 5;
+        automationMinProfitSpot.value = settings?.min_profit_trigger_percent_spot ?? 2.5;
+        automationMinProfitLong.value = settings?.min_profit_trigger_percent_long ?? 2.5;
+        automationMinProfitShort.value = settings?.min_profit_trigger_percent_short ?? 2.5;
+        automationMaxPredictionAtr.value = settings?.max_prediction_atr_percent ?? 3.5;
+        automationMaxCandleChange.value = settings?.max_signal_candle_change_percent ?? 2.5;
+        automationCooldownMinutes.value = settings?.cooldown_minutes ?? 30;
+        automationCloseOnTakeProfit.checked = Boolean(settings?.close_on_take_profit ?? true);
+        automationCloseOnStopLoss.checked = Boolean(settings?.close_on_stop_loss ?? true);
         setHtmlIfChanged(automationSummary, renderAutomationSummaryMarkup(settings?.summary, settings?.total_capital_usdt));
         setHtmlIfChanged(automationPairs, renderAutomationPairsMarkup(settings?.pairs, settings?.total_capital_usdt));
         updateText(automationStatus, settings?.enabled
-            ? 'Automation is enabled. Settings are ready for prediction-based execution wiring.'
-            : 'Automation is disabled. Configure the plan, then enable it when you are ready.');
+            ? 'Automation is enabled. The background scheduler handles the heartbeat, while this dashboard only shows the live state.'
+            : 'Automation is disabled. Configure the trigger and volatility limits, then enable it when you are ready.');
     };
 
     const refreshAutomationPreview = () => {
@@ -348,35 +414,11 @@
         renderPaperPreview();
     };
 
-    const syncPredictionTabs = () => {
-        predictionTabButtons.forEach((button) => {
-            const isPaperTab = button.dataset.tab === 'paper';
-            const isDisabled = isPaperTab && !paperTabEnabled;
-            const isActive = !isDisabled && button.dataset.tab === activePredictionTab;
-
-            button.classList.toggle('is-active', isActive);
-            button.classList.toggle('is-disabled', isDisabled);
-            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            button.setAttribute('tabindex', isActive ? '0' : '-1');
-            button.disabled = isDisabled;
-        });
-
-        predictionTabPanels.forEach((panel) => {
-            const isPaperPanel = panel.dataset.tabPanel === 'paper';
-            panel.hidden = panel.dataset.tabPanel !== activePredictionTab || (isPaperPanel && !paperTabEnabled);
-        });
-    };
-
-    const setActivePredictionTab = (tabName) => {
-        activePredictionTab = tabName === 'paper' && paperTabEnabled ? 'paper' : 'prediction';
-        syncPredictionTabs();
-    };
-
     const setPredictionLoading = (symbol) => {
         currentPrediction = null;
-        paperTabEnabled = false;
         predictionPanel.hidden = false;
         predictionTabs.hidden = false;
+        updatePaperTabAvailability();
         setActivePredictionTab('prediction');
         predictionGrid.hidden = true;
         predictionScenarios.hidden = true;
@@ -388,9 +430,9 @@
 
     const setPredictionError = (message) => {
         currentPrediction = null;
-        paperTabEnabled = false;
         predictionPanel.hidden = false;
         predictionTabs.hidden = false;
+        updatePaperTabAvailability();
         setActivePredictionTab('prediction');
         predictionGrid.hidden = true;
         predictionScenarios.hidden = true;
@@ -401,9 +443,9 @@
 
     const renderPrediction = (prediction) => {
         currentPrediction = prediction;
-        paperTabEnabled = true;
         predictionPanel.hidden = false;
         predictionTabs.hidden = false;
+        updatePaperTabAvailability();
         setActivePredictionTab('prediction');
         predictionGrid.hidden = false;
         predictionScenarios.hidden = false;
@@ -430,7 +472,31 @@
         setHtmlIfChanged(paperAccount, renderPaperAccountMarkup(paperTrading?.account));
         setHtmlIfChanged(paperOpenPositions, renderOpenPositionsMarkup(paperTrading?.open_positions || []));
         setHtmlIfChanged(paperHistory, renderHistoryMarkup(paperTrading?.history || []));
+        renderAutomationOpenPositions(paperTrading);
         setPaperBusy(false);
+        updatePaperTabAvailability();
+    };
+    const focusPaperPosition = (id) => {
+        predictionPanel.hidden = false;
+        predictionTabs.hidden = false;
+
+        if (!currentPrediction) {
+            updateText(predictionTitle, 'Paper trading overview');
+            updateText(predictionSummary, 'Manage open simulated positions and adjust their live levels here.');
+        }
+
+        updatePaperTabAvailability();
+        setActivePredictionTab('paper');
+
+        const target = paperOpenPositions.querySelector(`[data-paper-position-id="${String(id)}"]`);
+        if (!target) {
+            return;
+        }
+
+        paperOpenPositions.querySelectorAll('.is-focused').forEach((card) => card.classList.remove('is-focused'));
+        target.classList.add('is-focused');
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        window.setTimeout(() => target.classList.remove('is-focused'), 1800);
     };
 
     const apiJson = async (url, options = {}) => {
@@ -532,13 +598,13 @@
             });
             renderAutomationSettings(payload.settings);
             updateText(automationStatus, payload.message || 'Auto trade settings saved.');
+            void loadPaperTrading({ silent: false });
         } catch (error) {
             updateText(automationStatus, `Auto trade settings save failed: ${error.message}`);
         } finally {
             setAutomationBusy(false);
         }
     };
-
     const submitPaperForm = async (event) => {
         event.preventDefault();
         if (!currentPrediction || paperInFlight) {
@@ -646,11 +712,7 @@
             setHtmlIfChanged(signalGrid, renderSignalsMarkup(payload.signals, configuredPairs));
             errorBox.hidden = true;
             updateText(lastUpdated, new Date().toLocaleString());
-
-            const hasOpenPaperPositions = Array.isArray(currentPaperTrading?.open_positions) && currentPaperTrading.open_positions.length > 0;
-            if (!paperPanel.hidden || hasOpenPaperPositions) {
-                void loadPaperTrading({ silent: true });
-            }
+            void loadPaperTrading({ silent: true });
         } catch (error) {
             updateText(errorBox, `Refresh failed: ${error.message}`);
             errorBox.hidden = false;
@@ -681,6 +743,7 @@
 
     automationRefresh.addEventListener('click', () => {
         void loadAutomationSettings();
+        void loadPaperTrading({ silent: false });
     });
 
     automationForm.addEventListener('submit', saveAutomationSettings);
@@ -690,7 +753,7 @@
             return;
         }
 
-        if (target === automationTotalCapital) {
+        if (target === automationTotalCapital || target.closest('#automation-pairs')) {
             refreshAutomationPreview();
         }
     });
@@ -703,6 +766,15 @@
         if (target === automationEnabled || target.closest('#automation-pairs')) {
             refreshAutomationPreview();
         }
+    });
+
+    automationOpenPositions.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-action="focus-auto-position"]');
+        if (!target) {
+            return;
+        }
+
+        focusPaperPosition(Number(target.dataset.id || 0));
     });
 
     predictionTabs.addEventListener('click', (event) => {
@@ -735,9 +807,10 @@
         }
     });
 
-    syncPredictionTabs();
+    updatePaperTabAvailability();
     setAutomationPanelExpanded(readAutomationPanelExpanded());
     renderPaperPreview();
+    renderAutomationOpenPositions({ open_positions: [] });
     void loadAutomationSettings({ silent: true });
     void loadPaperTrading({ silent: true });
     scheduleRefresh();

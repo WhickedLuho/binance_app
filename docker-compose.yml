@@ -19,3 +19,19 @@ services:
     depends_on:
       - app
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: binance_app_scheduler
+    working_dir: /var/www/html
+    command: ["/bin/sh", "/var/www/html/scripts/automation_scheduler.sh"]
+    environment:
+      AUTOMATION_HEARTBEAT_INTERVAL: "10"
+      AUTOMATION_HEARTBEAT_TIMEOUT: "20"
+      AUTOMATION_HEARTBEAT_URL: "http://nginx/api/automation/heartbeat"
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - nginx

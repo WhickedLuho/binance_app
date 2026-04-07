@@ -22,7 +22,8 @@
 .prediction-timeframes,
 .paper-account-grid,
 .paper-open-list,
-.paper-history-list {
+.paper-history-list,
+.automation-open-positions {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 18px;
@@ -45,7 +46,8 @@ div#paper-account {
 .card,
 .prediction-block,
 .paper-card,
-.paper-history-card {
+.paper-history-card,
+.automation-open-card {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01)), var(--panel);
     border: 1px solid var(--border);
     border-radius: 18px;
@@ -128,7 +130,6 @@ div#paper-account {
     display: none;
 }
 
-
 .automation-form {
     display: grid;
     gap: 18px;
@@ -136,14 +137,20 @@ div#paper-account {
 
 .automation-grid,
 .automation-summary,
-.automation-pairs {
+.automation-pairs,
+.automation-open-positions {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
 }
 
-.automation-pairs {
+.automation-pairs,
+.automation-open-positions {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.automation-grid-secondary {
+    align-items: start;
 }
 
 .automation-pairs-head h3 {
@@ -160,17 +167,49 @@ div#paper-account {
     gap: 12px;
 }
 
-.automation-pair-top {
+.automation-pair-top,
+.automation-open-card-head {
     display: flex;
     justify-content: space-between;
     gap: 12px;
     align-items: flex-start;
 }
 
-.automation-pair-grid {
+.automation-pair-grid,
+.automation-open-card-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
     gap: 10px;
+}
+
+.automation-open-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.automation-open-card-grid .metric,
+.paper-card-grid .metric {
+    padding: 0;
+    border: 0;
+}
+
+.automation-open-card {
+    appearance: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    display: grid;
+    gap: 12px;
+    background: linear-gradient(180deg, rgba(255, 211, 106, 0.08), rgba(255, 255, 255, 0.02)), var(--panel);
+}
+
+.automation-open-card:hover {
+    border-color: rgba(255, 211, 106, 0.28);
+    transform: translateY(-1px);
+}
+
+.automation-open-card-foot {
+    color: var(--muted);
+    font-size: 0.86rem;
 }
 
 .automation-readonly {
@@ -187,6 +226,12 @@ div#paper-account {
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+.automation-switch-row {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
 }
 
 .field-toggle {
@@ -520,16 +565,23 @@ div#paper-account {
     font-size: 0.88rem;
 }
 
+.paper-source-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.paper-card-auto {
+    border-color: rgba(255, 211, 106, 0.22);
+}
+
 .paper-card-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px 14px;
     margin-bottom: 14px;
-}
-
-.paper-card-grid .metric {
-    padding: 0;
-    border: 0;
 }
 
 .inline-edit-grid {
@@ -548,6 +600,11 @@ div#paper-account {
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 12px;
+}
+
+.paper-card.is-focused {
+    border-color: rgba(255, 211, 106, 0.42);
+    box-shadow: 0 0 0 1px rgba(255, 211, 106, 0.18), 0 18px 44px rgba(0, 0, 0, 0.24);
 }
 
 .paper-empty {
@@ -586,21 +643,21 @@ div#paper-account {
     }
 
     .prediction-header,
-    .paper-section-head {
+    .paper-section-head,
+    .automation-pair-top,
+    .automation-open-card-head {
         flex-direction: column;
     }
 
     .paper-columns,
     .paper-form-grid,
     .inline-edit-grid,
-    .automation-pair-grid {
+    .automation-pair-grid,
+    .automation-open-card-grid {
         grid-template-columns: 1fr;
     }
 
-    .field-wide {
-        grid-column: span 1;
-    }
-
+    .field-wide,
     .field-toggle {
         grid-column: span 1;
     }

@@ -38,7 +38,7 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             <div>
                 <div class="prediction-kicker">Auto paper trading</div>
                 <h2>Prediction execution control</h2>
-                <p class="meta">Prepare the capital plan and pair allocations here. This panel stores the settings for later automatic, prediction-based paper entries.</p>
+                <p class="meta">Prepare the capital plan, reward trigger and volatility guardrails here. When enabled, the dashboard heartbeat can open and manage paper positions from prediction output.</p>
             </div>
             <div class="prediction-actions">
                 <button type="button" class="prediction-button alt-button" id="automation-toggle" aria-expanded="true" aria-controls="automation-content">Collapse</button>
@@ -88,7 +88,57 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
                     </label>
                 </div>
 
+                <div class="automation-grid automation-grid-secondary">
+                    <label class="field">
+                        <span>Min reward % (spot)</span>
+                        <input type="number" id="automation-min-profit-spot" min="0" step="0.1" value="2.5">
+                    </label>
+                    <label class="field">
+                        <span>Min reward % (long)</span>
+                        <input type="number" id="automation-min-profit-long" min="0" step="0.1" value="2.5">
+                    </label>
+                    <label class="field">
+                        <span>Min reward % (short)</span>
+                        <input type="number" id="automation-min-profit-short" min="0" step="0.1" value="2.5">
+                    </label>
+                    <label class="field">
+                        <span>Max prediction ATR %</span>
+                        <input type="number" id="automation-max-prediction-atr" min="0.1" step="0.1" value="3.5">
+                    </label>
+                    <label class="field">
+                        <span>Max last candle move %</span>
+                        <input type="number" id="automation-max-candle-change" min="0.1" step="0.1" value="2.5">
+                    </label>
+                    <label class="field">
+                        <span>Cooldown (minutes)</span>
+                        <input type="number" id="automation-cooldown-minutes" min="0" step="1" value="30">
+                    </label>
+                    <div class="field field-toggle">
+                        <span>Auto exits</span>
+                        <div class="automation-switch-row">
+                            <label class="switch switch-compact">
+                                <input type="checkbox" id="automation-close-on-take-profit" checked>
+                                <span class="switch-slider"></span>
+                                <span class="switch-label">Close on take profit</span>
+                            </label>
+                            <label class="switch switch-compact">
+                                <input type="checkbox" id="automation-close-on-stop-loss" checked>
+                                <span class="switch-slider"></span>
+                                <span class="switch-label">Close on stop loss</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="automation-summary" id="automation-summary"></div>
+
+                <div class="automation-pairs-head">
+                    <div>
+                        <h3>Auto-managed open positions</h3>
+                        <p class="meta">Prediction-opened paper positions show up here first. Click any card to jump straight into the regular paper position editor.</p>
+                    </div>
+                </div>
+                <div class="automation-open-positions" id="automation-open-positions"></div>
 
                 <div class="automation-pairs-head">
                     <div>
@@ -320,5 +370,3 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
 </div>
 <script src="/assets/js/dashboard.view.js" defer></script>
 <script src="/assets/js/dashboard.js" defer></script>
-
-

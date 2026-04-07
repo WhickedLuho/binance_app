@@ -110,6 +110,14 @@ final class AutoTradeSettingsService
                 'Default margin type'
             ),
             'default_leverage' => max(1, min((int) $this->config->get('paper.max_leverage', 20), (int) ($payload['default_leverage'] ?? 5))),
+            'min_profit_trigger_percent_spot' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_spot'] ?? 2.5, 'Spot reward trigger'),
+            'min_profit_trigger_percent_long' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_long'] ?? 2.5, 'Long reward trigger'),
+            'min_profit_trigger_percent_short' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_short'] ?? 2.5, 'Short reward trigger'),
+            'max_prediction_atr_percent' => $this->positiveFloat($payload['max_prediction_atr_percent'] ?? $this->config->get('strategy.max_atr_percent', 3.5), 'Maximum prediction ATR'),
+            'max_signal_candle_change_percent' => $this->positiveFloat($payload['max_signal_candle_change_percent'] ?? $this->config->get('strategy.max_single_candle_change_percent', 2.5), 'Maximum candle change'),
+            'cooldown_minutes' => max(0, (int) ($payload['cooldown_minutes'] ?? 30)),
+            'close_on_take_profit' => (bool) ($payload['close_on_take_profit'] ?? true),
+            'close_on_stop_loss' => (bool) ($payload['close_on_stop_loss'] ?? true),
             'pairs' => $pairs,
             'summary' => [
                 'enabled_pairs' => count($enabledPairs),
@@ -145,7 +153,17 @@ final class AutoTradeSettingsService
             throw new InvalidArgumentException($field . ' must be greater than zero.');
         }
 
-        return $float;
+        return round($float, 4);
+    }
+
+    private function nonNegativeFloat(mixed $value, string $field): float
+    {
+        $float = (float) $value;
+        if ($float < 0) {
+            throw new InvalidArgumentException($field . ' cannot be negative.');
+        }
+
+        return round($float, 4);
     }
 
     private function enumValue(mixed $value, array $allowed, string $field): string
