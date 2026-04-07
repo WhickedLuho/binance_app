@@ -15,13 +15,18 @@ return [
         '1h',
         '4h',
     ],
-    'analysis_limit' => 240,
-    'prediction_limit' => 160,
-    'default_limit' => 240,
-    'refresh_seconds' => 5,
+    'analysis_limit' => 180,
+    'prediction_limit' => 120,
+    'default_limit' => 180,
+    'refresh_seconds' => 10,
     'pairs' => [
         'BTCUSDT',
-        'ETHUSDT',
         'BNBUSDT',
+        'ETHUSDT',
+        'SOLUSDT',
+        'BCHUSDT',
+        'XRPUSDT',
+        'LTCUSDT',
+        'TRXUSDT'
     ],
 ];
