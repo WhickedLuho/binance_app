@@ -64,6 +64,34 @@
         }
     };
 
+    const formatDuration = (value) => {
+        const milliseconds = Number(value);
+        if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+            return '-';
+        }
+
+        if (milliseconds < 1000) {
+            return `${Math.round(milliseconds)} ms`;
+        }
+
+        return `${(milliseconds / 1000).toFixed(milliseconds >= 10000 ? 1 : 2)} s`;
+    };
+
+    const automationRuntimeMeta = (health) => {
+        switch (String(health || '').toUpperCase()) {
+            case 'ACTIVE':
+                return { label: 'ACTIVE', className: 'long' };
+            case 'RUNNING':
+                return { label: 'RUNNING', className: 'neutral' };
+            case 'STALE':
+                return { label: 'STALE', className: 'short' };
+            case 'ERROR':
+                return { label: 'ERROR', className: 'short' };
+            default:
+                return { label: 'UNKNOWN', className: 'neutral' };
+        }
+    };
+
     const renderTimeframes = (timeframes) => {
         const entries = Object.entries(timeframes || {});
         if (!entries.length) {
@@ -434,12 +462,84 @@
         }).join('');
     };
 
+    const renderAutomationRuntimeMarkup = (runtime) => {
+        if (!runtime) {
+            return '<div class="paper-empty">Runtime status is not available yet.</div>';
+        }
+
+        const health = automationRuntimeMeta(runtime.health);
+        const stats = runtime.stats || {};
+        const lastHeartbeat = runtime.last_finished_at
+            ? formatDate(runtime.last_finished_at)
+            : (runtime.last_started_at ? `Started: ${formatDate(runtime.last_started_at)}` : '-');
+        const freshness = runtime.seconds_since_last_activity != null
+            ? `${runtime.seconds_since_last_activity} sec ago`
+            : '-';
+        const cadence = `${formatNumber(runtime.expected_interval_seconds, 0)} sec cadence`;
+        const staleWindow = `${formatNumber(runtime.stale_after_seconds, 0)} sec stale window`;
+        const lockText = runtime.lock_active ? 'Active run holds the lock.' : 'No active lock detected.';
+
+        return [
+            `
+                <article class="paper-card automation-runtime-card">
+                    <div class="automation-runtime-status">
+                        <div>
+                            <div class="prediction-label">Scheduler health</div>
+                            <div class="prediction-value">${escapeHtml(runtime.state || 'UNKNOWN')}</div>
+                        </div>
+                        <span class="badge ${health.className}">${escapeHtml(health.label)}</span>
+                    </div>
+                    <div class="automation-runtime-copy">${escapeHtml(runtime.summary || 'No runtime summary is available yet.')}</div>
+                </article>
+            `,
+            `
+                <article class="paper-card automation-runtime-card">
+                    <div class="prediction-label">Last heartbeat</div>
+                    <div class="prediction-value">${escapeHtml(lastHeartbeat)}</div>
+                    <div class="automation-runtime-meta">
+                        <div class="metric"><span>Freshness</span><span>${escapeHtml(freshness)}</span></div>
+                        <div class="metric"><span>Last duration</span><span>${escapeHtml(formatDuration(runtime.last_duration_ms))}</span></div>
+                    </div>
+                </article>
+            `,
+            `
+                <article class="paper-card automation-runtime-card">
+                    <div class="prediction-label">Cadence guardrails</div>
+                    <div class="prediction-value">${escapeHtml(cadence)}</div>
+                    <div class="automation-runtime-meta">
+                        <div class="metric"><span>Stale window</span><span>${escapeHtml(staleWindow)}</span></div>
+                        <div class="metric"><span>Lock status</span><span>${escapeHtml(lockText)}</span></div>
+                    </div>
+                </article>
+            `,
+            `
+                <article class="paper-card automation-runtime-card">
+                    <div class="prediction-label">Latest counters</div>
+                    <div class="automation-runtime-meta">
+                        <div class="metric"><span>Opened</span><span>${escapeHtml(String(stats.opened_positions ?? 0))}</span></div>
+                        <div class="metric"><span>Closed</span><span>${escapeHtml(String(stats.closed_positions ?? 0))}</span></div>
+                        <div class="metric"><span>Auto open</span><span>${escapeHtml(String(stats.auto_open_positions ?? 0))}</span></div>
+                        <div class="metric"><span>Evaluated</span><span>${escapeHtml(String(stats.evaluated_pairs ?? 0))}</span></div>
+                    </div>
+                </article>
+            `,
+            `
+                <article class="paper-card automation-runtime-card is-wide">
+                    <div class="prediction-label">Last scheduler message</div>
+                    <div class="automation-runtime-copy">${escapeHtml(runtime.message || 'No scheduler message is available yet.')}</div>
+                    ${runtime.last_error ? `<div class="risk pair-error"><strong>Last error</strong><br>${escapeHtml(runtime.last_error)}</div>` : ''}
+                </article>
+            `,
+        ].join('');
+    };
+
     window.DashboardView = {
         formatDate,
         formatNumber,
         formatZone,
         renderAutomationPairsMarkup,
         renderAutomationPositionsMarkup,
+        renderAutomationRuntimeMarkup,
         renderAutomationSummaryMarkup,
         renderHistoryMarkup,
         renderOpenPositionsMarkup,

@@ -11,4 +11,7 @@ return [
     'storage_file' => 'storage/cache/paper_trades.json',
     'automation_storage_file' => 'storage/cache/auto_trade_settings.json',
     'automation_lock_file' => 'storage/cache/auto_trade_heartbeat.lock',
+    'automation_status_file' => 'storage/cache/auto_trade_heartbeat_status.json',
+    'automation_expected_heartbeat_seconds' => 10,
+    'automation_status_stale_after_seconds' => 35,
 ];

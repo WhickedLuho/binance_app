@@ -91,7 +91,8 @@ final class App
             $c->get(MarketAnalyzer::class),
             $c->get(PairPredictionService::class),
             $c->get(PaperTradeService::class),
-            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_lock_file', 'storage/cache/auto_trade_heartbeat.lock'), '/')
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_lock_file', 'storage/cache/auto_trade_heartbeat.lock'), '/'),
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_status_file', 'storage/cache/auto_trade_heartbeat_status.json'), '/')
         ));
         $container->set(HomeController::class, fn (Container $c): HomeController => new HomeController(
             $c->get(View::class),

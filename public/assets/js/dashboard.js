@@ -10,6 +10,7 @@
         formatZone,
         renderAutomationPairsMarkup,
         renderAutomationPositionsMarkup,
+        renderAutomationRuntimeMarkup,
         renderAutomationSummaryMarkup,
         renderHistoryMarkup,
         renderOpenPositionsMarkup,
@@ -68,6 +69,7 @@
     const automationCloseOnStopLoss = document.getElementById('automation-close-on-stop-loss');
     const automationSummary = document.getElementById('automation-summary');
     const automationPairs = document.getElementById('automation-pairs');
+    const automationRuntime = document.getElementById('automation-runtime');
     const automationOpenPositions = document.getElementById('automation-open-positions');
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionTitle = document.getElementById('prediction-title');
@@ -115,6 +117,7 @@
     let automationInFlight = false;
     let automationHeartbeatInFlight = false;
     let currentAutomationSettings = null;
+    let currentAutomationRuntime = null;
     const automationPanelStorageKey = 'dashboard.automation-panel';
 
     const readAutomationPanelExpanded = () => {
@@ -332,6 +335,11 @@
 
     const renderAutomationOpenPositions = (paperTrading) => {
         setHtmlIfChanged(automationOpenPositions, renderAutomationPositionsMarkup(extractAutoPositions(paperTrading)));
+    };
+
+    const renderAutomationRuntime = (runtime) => {
+        currentAutomationRuntime = runtime;
+        setHtmlIfChanged(automationRuntime, renderAutomationRuntimeMarkup(runtime));
     };
 
     const renderAutomationSettings = (settings) => {
@@ -581,6 +589,27 @@
         }
     };
 
+    const loadAutomationRuntime = async ({ silent = false } = {}) => {
+        if (automationHeartbeatInFlight) {
+            return;
+        }
+
+        automationHeartbeatInFlight = true;
+        try {
+            const payload = await apiJson('/api/automation/status');
+            renderAutomationRuntime(payload.automation_status || null);
+            if (!silent) {
+                updateText(automationStatus, payload.message || 'Automation runtime loaded.');
+            }
+        } catch (error) {
+            if (!silent) {
+                updateText(automationStatus, `Automation runtime failed to load: ${error.message}`);
+            }
+        } finally {
+            automationHeartbeatInFlight = false;
+        }
+    };
+
     const saveAutomationSettings = async (event) => {
         event.preventDefault();
         if (automationInFlight) {
@@ -713,6 +742,7 @@
             errorBox.hidden = true;
             updateText(lastUpdated, new Date().toLocaleString());
             void loadPaperTrading({ silent: true });
+            void loadAutomationRuntime({ silent: true });
         } catch (error) {
             updateText(errorBox, `Refresh failed: ${error.message}`);
             errorBox.hidden = false;
@@ -743,6 +773,7 @@
 
     automationRefresh.addEventListener('click', () => {
         void loadAutomationSettings();
+        void loadAutomationRuntime({ silent: false });
         void loadPaperTrading({ silent: false });
     });
 
@@ -810,8 +841,10 @@
     updatePaperTabAvailability();
     setAutomationPanelExpanded(readAutomationPanelExpanded());
     renderPaperPreview();
+    renderAutomationRuntime(currentAutomationRuntime);
     renderAutomationOpenPositions({ open_positions: [] });
     void loadAutomationSettings({ silent: true });
+    void loadAutomationRuntime({ silent: true });
     void loadPaperTrading({ silent: true });
     scheduleRefresh();
 })();

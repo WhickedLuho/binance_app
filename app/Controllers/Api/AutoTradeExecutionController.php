@@ -24,7 +24,24 @@ final class AutoTradeExecutionController
                 'status' => 'ok',
                 'message' => 'Automation heartbeat completed.',
                 'automation' => $result,
+                'automation_status' => $this->automation->status(),
                 'paper_trading' => $result['paper_trading'] ?? null,
+            ]);
+        } catch (Throwable $throwable) {
+            return Response::json([
+                'status' => 'error',
+                'message' => $throwable->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function status(Request $request): Response
+    {
+        try {
+            return Response::json([
+                'status' => 'ok',
+                'message' => 'Automation runtime status loaded.',
+                'automation_status' => $this->automation->status(),
             ]);
         } catch (Throwable $throwable) {
             return Response::json([

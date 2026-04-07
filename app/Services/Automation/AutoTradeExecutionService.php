@@ -22,18 +22,30 @@ final class AutoTradeExecutionService
         private readonly MarketAnalyzer $analyzer,
         private readonly PairPredictionService $predictions,
         private readonly PaperTradeService $paperTrades,
-        private readonly string $lockFilePath
+        private readonly string $lockFilePath,
+        private readonly string $statusFilePath
     ) {
     }
 
     public function heartbeat(): array
     {
+        $startedAt = $this->now();
+        $startedAtAtom = $startedAt->format(DATE_ATOM);
+        $startedMicrotime = microtime(true);
+
+        $this->writeStatusPayload([
+            'state' => 'RUNNING',
+            'last_started_at' => $startedAtAtom,
+            'last_message' => 'Automation heartbeat started.',
+            'last_error' => null,
+            'last_duration_ms' => null,
+        ]);
+
         $lockHandle = $this->acquireLock();
         if ($lockHandle === null) {
             $settings = $this->settings->show();
             $paperTrading = $this->paperTrades->overview();
-
-            return $this->buildResult(
+            $result = $this->buildResult(
                 $settings,
                 $paperTrading,
                 [],
@@ -44,6 +56,10 @@ final class AutoTradeExecutionService
                 ]],
                 'Automation heartbeat skipped because a previous run is still active.'
             );
+
+            $this->finishStatus('LOCKED', $startedAtAtom, $startedMicrotime, $result['message'], $result['stats']);
+
+            return $result;
         }
 
         try {
@@ -53,13 +69,16 @@ final class AutoTradeExecutionService
             $evaluations = [];
 
             if (!$settings['enabled']) {
-                return $this->buildResult(
+                $result = $this->buildResult(
                     $settings,
                     $paperTrading,
                     $actions,
                     $evaluations,
                     'Automation is disabled. Saved settings stay ready, but no auto entries or exits will run.'
                 );
+                $this->finishStatus('DISABLED', $startedAtAtom, $startedMicrotime, $result['message'], $result['stats']);
+
+                return $result;
             }
 
             [$paperTrading, $closeActions] = $this->closeTriggeredPositions($settings, $paperTrading);
@@ -208,10 +227,88 @@ final class AutoTradeExecutionService
                 count($this->autoPositions($paperTrading['open_positions'] ?? []))
             );
 
-            return $this->buildResult($settings, $paperTrading, $actions, $evaluations, $message);
+            $result = $this->buildResult($settings, $paperTrading, $actions, $evaluations, $message);
+            $this->finishStatus('OK', $startedAtAtom, $startedMicrotime, $result['message'], $result['stats']);
+
+            return $result;
+        } catch (Throwable $throwable) {
+            $this->finishStatus('ERROR', $startedAtAtom, $startedMicrotime, $throwable->getMessage(), [
+                'opened_positions' => 0,
+                'closed_positions' => 0,
+                'auto_open_positions' => 0,
+                'evaluated_pairs' => 0,
+            ], $throwable->getMessage());
+            throw $throwable;
         } finally {
             $this->releaseLock($lockHandle);
         }
+    }
+    public function status(): array
+    {
+        $payload = $this->readStatusPayload();
+        $now = $this->now();
+        $state = strtoupper(trim((string) ($payload['state'] ?? 'NEVER_RUN')));
+        if ($state === '') {
+            $state = 'NEVER_RUN';
+        }
+
+        $lastStartedAt = $this->parseDate($payload['last_started_at'] ?? null);
+        $lastFinishedAt = $this->parseDate($payload['last_finished_at'] ?? null);
+        $secondsSinceStart = $this->secondsSince($lastStartedAt, $now);
+        $secondsSinceLastActivity = $this->secondsSince($lastFinishedAt ?? $lastStartedAt, $now);
+        $expectedInterval = max(1, (int) $this->config->get('paper.automation_expected_heartbeat_seconds', 10));
+        $staleAfter = max(
+            $expectedInterval * 3,
+            (int) $this->config->get('paper.automation_status_stale_after_seconds', max($expectedInterval * 3, 35))
+        );
+        $lockActive = $this->isLockActive();
+
+        $health = 'UNKNOWN';
+        $summary = 'No scheduler heartbeat has been recorded yet.';
+
+        if (($state === 'RUNNING' || $lockActive) && $secondsSinceStart !== null && $secondsSinceStart <= $staleAfter) {
+            $health = 'RUNNING';
+            $summary = 'The scheduler reached the app and the current heartbeat is still running.';
+        } elseif ($state === 'ERROR' && $secondsSinceLastActivity !== null && $secondsSinceLastActivity <= $staleAfter) {
+            $health = 'ERROR';
+            $summary = 'The scheduler is reaching the app, but the latest heartbeat ended with an error.';
+        } elseif ($secondsSinceLastActivity !== null && $secondsSinceLastActivity > $staleAfter) {
+            $health = 'STALE';
+            $summary = 'No recent heartbeat was recorded, so the scheduler may be stopped or disconnected.';
+        } elseif ($state === 'DISABLED' && $secondsSinceLastActivity !== null) {
+            $health = 'ACTIVE';
+            $summary = 'The scheduler is alive, but automation is disabled in the saved settings.';
+        } elseif ($state === 'LOCKED' && $secondsSinceLastActivity !== null) {
+            $health = 'ACTIVE';
+            $summary = 'The scheduler is alive. The most recent request was skipped because another heartbeat was still running.';
+        } elseif ($state === 'OK' && $secondsSinceLastActivity !== null) {
+            $health = 'ACTIVE';
+            $summary = 'The scheduler is alive and recent heartbeats are arriving on time.';
+        }
+
+        $stats = is_array($payload['stats'] ?? null) ? $payload['stats'] : [];
+
+        return [
+            'health' => $health,
+            'state' => $state,
+            'summary' => $summary,
+            'message' => (string) ($payload['last_message'] ?? $summary),
+            'lock_active' => $lockActive,
+            'expected_interval_seconds' => $expectedInterval,
+            'stale_after_seconds' => $staleAfter,
+            'last_started_at' => $payload['last_started_at'] ?? null,
+            'last_finished_at' => $payload['last_finished_at'] ?? null,
+            'last_duration_ms' => isset($payload['last_duration_ms']) ? (int) $payload['last_duration_ms'] : null,
+            'seconds_since_start' => $secondsSinceStart,
+            'seconds_since_last_activity' => $secondsSinceLastActivity,
+            'last_error' => $payload['last_error'] ?? null,
+            'stats' => [
+                'opened_positions' => (int) ($stats['opened_positions'] ?? 0),
+                'closed_positions' => (int) ($stats['closed_positions'] ?? 0),
+                'auto_open_positions' => (int) ($stats['auto_open_positions'] ?? 0),
+                'evaluated_pairs' => (int) ($stats['evaluated_pairs'] ?? 0),
+            ],
+        ];
     }
 
     private function closeTriggeredPositions(array $settings, array $paperTrading): array
@@ -368,7 +465,6 @@ final class AutoTradeExecutionService
             'scenario' => $scenario,
         ];
     }
-
     private function maxPredictionAtrPercent(array $prediction): float
     {
         $values = [];
@@ -505,6 +601,83 @@ final class AutoTradeExecutionService
             'paper_trading' => $paperTrading,
         ];
     }
+    private function finishStatus(string $state, string $startedAtAtom, float $startedMicrotime, string $message, array $stats, ?string $error = null): void
+    {
+        $finishedAt = $this->nowAtom();
+        $durationMs = (int) max(0, round((microtime(true) - $startedMicrotime) * 1000));
+
+        $this->writeStatusPayload([
+            'state' => $state,
+            'last_started_at' => $startedAtAtom,
+            'last_finished_at' => $finishedAt,
+            'last_duration_ms' => $durationMs,
+            'last_message' => $message,
+            'last_error' => $error,
+            'stats' => [
+                'opened_positions' => (int) ($stats['opened_positions'] ?? 0),
+                'closed_positions' => (int) ($stats['closed_positions'] ?? 0),
+                'auto_open_positions' => (int) ($stats['auto_open_positions'] ?? 0),
+                'evaluated_pairs' => (int) ($stats['evaluated_pairs'] ?? 0),
+            ],
+        ]);
+    }
+
+    private function readStatusPayload(): array
+    {
+        if (!is_file($this->statusFilePath)) {
+            return [];
+        }
+
+        $raw = @file_get_contents($this->statusFilePath);
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function writeStatusPayload(array $payload): void
+    {
+        $directory = dirname($this->statusFilePath);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create automation status directory.');
+        }
+
+        $existing = $this->readStatusPayload();
+        $encoded = json_encode(array_merge($existing, $payload), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if ($encoded === false) {
+            throw new RuntimeException('Unable to encode automation status payload.');
+        }
+
+        if (file_put_contents($this->statusFilePath, $encoded . PHP_EOL, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to write automation status file.');
+        }
+    }
+
+    private function isLockActive(): bool
+    {
+        $directory = dirname($this->lockFilePath);
+        if (!is_dir($directory)) {
+            return false;
+        }
+
+        $handle = fopen($this->lockFilePath, 'c+');
+        if ($handle === false) {
+            return false;
+        }
+
+        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+            fclose($handle);
+            return true;
+        }
+
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        return false;
+    }
 
     private function acquireLock(): mixed
     {
@@ -534,6 +707,28 @@ final class AutoTradeExecutionService
 
         flock($handle, LOCK_UN);
         fclose($handle);
+    }
+
+    private function parseDate(mixed $value): ?DateTimeImmutable
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return new DateTimeImmutable($value);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function secondsSince(?DateTimeImmutable $date, DateTimeImmutable $now): ?int
+    {
+        if ($date === null) {
+            return null;
+        }
+
+        return max(0, $now->getTimestamp() - $date->getTimestamp());
     }
 
     private function now(): DateTimeImmutable

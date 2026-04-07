@@ -11,6 +11,7 @@ return [
     ['GET', '/api/prediction', [PredictionController::class, 'show']],
     ['GET', '/api/auto-trade-settings', [AutoTradeSettingsController::class, 'show']],
     ['POST', '/api/auto-trade-settings', [AutoTradeSettingsController::class, 'update']],
+    ['GET', '/api/automation/status', [AutoTradeExecutionController::class, 'status']],
     ['POST', '/api/automation/heartbeat', [AutoTradeExecutionController::class, 'heartbeat']],
     ['GET', '/api/paper-trades', [PaperTradeController::class, 'index']],
     ['POST', '/api/paper-trades', [PaperTradeController::class, 'store']],

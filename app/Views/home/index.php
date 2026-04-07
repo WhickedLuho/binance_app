@@ -38,7 +38,7 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             <div>
                 <div class="prediction-kicker">Auto paper trading</div>
                 <h2>Prediction execution control</h2>
-                <p class="meta">Prepare the capital plan, reward trigger and volatility guardrails here. When enabled, the dashboard heartbeat can open and manage paper positions from prediction output.</p>
+                <p class="meta">Prepare the capital plan, reward trigger and volatility guardrails here. When enabled, the background scheduler can open and manage paper positions from prediction output.</p>
             </div>
             <div class="prediction-actions">
                 <button type="button" class="prediction-button alt-button" id="automation-toggle" aria-expanded="true" aria-controls="automation-content">Collapse</button>
@@ -48,6 +48,16 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
 
         <div class="automation-content" id="automation-content">
             <div class="prediction-status" id="automation-status" aria-live="polite">Loading auto trade settings...</div>
+
+            <div class="automation-pairs-head automation-runtime-head">
+                <div>
+                    <h3>Scheduler runtime</h3>
+                    <p class="meta">This block shows whether the background scheduler is still reaching the app. It is safe to refresh because it only reads the last recorded heartbeat status.</p>
+                </div>
+            </div>
+            <div class="automation-runtime" id="automation-runtime">
+                <div class="paper-empty">Waiting for the first scheduler heartbeat...</div>
+            </div>
 
             <form class="automation-form" id="automation-form">
                 <div class="automation-grid">
