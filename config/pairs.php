@@ -6,9 +6,9 @@ return [
     'confirmation_timeframe' => '1h',
     'trigger_timeframe' => '5m',
     'analysis_timeframes' => [
-        '5m',
         '15m',
         '1h',
+        '4h',
     ],
     'prediction_timeframes' => [
         '15m',

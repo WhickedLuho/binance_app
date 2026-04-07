@@ -6,7 +6,7 @@ $enabledTimeframes = array_values(array_unique(array_map(
 $enabledTimeframesLabel = $enabledTimeframes !== [] ? implode(', ', $enabledTimeframes) : 'none';
 $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
 ?>
-<div id="dashboard-root" data-refresh-seconds="<?= (int) $refreshSeconds ?>">
+<div id="dashboard-root" data-refresh-seconds="<?= (int) $refreshSeconds ?>" data-configured-pairs="<?= htmlspecialchars(json_encode(array_values($pairs ?? [])), ENT_QUOTES, 'UTF-8') ?>">
     <section class="hero">
         <h1><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
         <p>
@@ -125,17 +125,17 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             </div>
         </div>
 
-        <div class="prediction-tabs" id="prediction-tabs" hidden>
-            <button type="button" class="prediction-tab is-active" id="prediction-tab-prediction" data-tab="prediction" aria-selected="true">
+        <div class="prediction-tabs" id="prediction-tabs" role="tablist" aria-label="Prediction views" hidden>
+            <button type="button" class="prediction-tab is-active" id="prediction-tab-prediction" data-tab="prediction" role="tab" aria-controls="prediction-content" aria-selected="true">
                 Prediction
             </button>
-            <button type="button" class="prediction-tab" id="prediction-tab-paper" data-tab="paper" aria-selected="false">
+            <button type="button" class="prediction-tab" id="prediction-tab-paper" data-tab="paper" role="tab" aria-controls="paper-panel" aria-selected="false">
                 Open position
             </button>
         </div>
 
-        <section class="tab-panel" id="prediction-content" data-tab-panel="prediction">
-            <div class="prediction-status" id="prediction-status">Prediction is currently idle.</div>
+        <section class="tab-panel" id="prediction-content" data-tab-panel="prediction" role="tabpanel" aria-labelledby="prediction-tab-prediction">
+            <div class="prediction-status" id="prediction-status" aria-live="polite">Prediction is currently idle.</div>
 
             <div class="prediction-grid" id="prediction-grid" hidden>
                 <article class="prediction-block">
@@ -164,7 +164,7 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             <div class="prediction-timeframes" id="prediction-timeframes" hidden></div>
         </section>
 
-        <section class="paper-panel tab-panel" id="paper-panel" data-tab-panel="paper" hidden>
+        <section class="paper-panel tab-panel" id="paper-panel" data-tab-panel="paper" role="tabpanel" aria-labelledby="prediction-tab-paper" hidden>
             <div class="prediction-header paper-header">
                 <div>
                     <div class="prediction-kicker">Paper trading cockpit</div>
@@ -173,7 +173,7 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
                 </div>
             </div>
 
-            <div class="prediction-status" id="paper-status">Select a prediction to prepare a simulated trade.</div>
+            <div class="prediction-status" id="paper-status" aria-live="polite">Select a prediction to prepare a simulated trade.</div>
 
             <form class="paper-form" id="paper-form">
                 <div class="paper-form-grid">
@@ -246,5 +246,7 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
         </section>
     </section>
 </div>
+<script src="/assets/js/dashboard.view.js" defer></script>
 <script src="/assets/js/dashboard.js" defer></script>
+
 
