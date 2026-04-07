@@ -120,6 +120,15 @@ div#paper-account {
     background: linear-gradient(180deg, rgba(255, 211, 106, 0.08), rgba(255, 255, 255, 0.01)), var(--panel-2);
 }
 
+.automation-content {
+    display: grid;
+}
+
+.automation-panel.is-collapsed .automation-content {
+    display: none;
+}
+
+
 .automation-form {
     display: grid;
     gap: 18px;
@@ -368,6 +377,11 @@ div#paper-account {
 .paper-inline-button.danger {
     border-color: rgba(255, 123, 123, 0.28);
     background: rgba(255, 123, 123, 0.12);
+}
+
+.prediction-button.alt-button {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .prediction-button:hover,

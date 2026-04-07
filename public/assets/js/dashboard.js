@@ -44,9 +44,12 @@
     const signalGrid = document.getElementById('signal-grid');
     const errorBox = document.getElementById('dashboard-error');
     const lastUpdated = document.getElementById('last-updated');
+    const automationPanel = document.getElementById('automation-panel');
+    const automationContent = document.getElementById('automation-content');
     const automationStatus = document.getElementById('automation-status');
     const automationForm = document.getElementById('automation-form');
     const automationRefresh = document.getElementById('automation-refresh');
+    const automationToggle = document.getElementById('automation-toggle');
     const automationSave = document.getElementById('automation-save');
     const automationEnabled = document.getElementById('automation-enabled');
     const automationTotalCapital = document.getElementById('automation-total-capital');
@@ -102,7 +105,29 @@
     let currentPaperTrading = null;
     let automationInFlight = false;
     let currentAutomationSettings = null;
+    const automationPanelStorageKey = 'dashboard.automation-panel';
 
+
+    const readAutomationPanelExpanded = () => {
+        try {
+            return window.localStorage.getItem(automationPanelStorageKey) !== 'collapsed';
+        } catch {
+            return true;
+        }
+    };
+
+    const setAutomationPanelExpanded = (expanded) => {
+        automationPanel.classList.toggle('is-collapsed', !expanded);
+        automationContent.hidden = !expanded;
+        automationToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        automationToggle.textContent = expanded ? 'Collapse' : 'Expand';
+
+        try {
+            window.localStorage.setItem(automationPanelStorageKey, expanded ? 'expanded' : 'collapsed');
+        } catch {
+            // Ignore storage failures and keep the in-memory UI state.
+        }
+    };
     const predictionDefaults = (prediction, positionType) => {
         const currentPrice = Number(prediction?.current_price || 0);
         const longScenario = prediction?.scenarios?.long || {};
@@ -650,6 +675,10 @@
         }
     });
 
+    automationToggle.addEventListener('click', () => {
+        setAutomationPanelExpanded(automationContent.hidden);
+    });
+
     automationRefresh.addEventListener('click', () => {
         void loadAutomationSettings();
     });
@@ -707,6 +736,7 @@
     });
 
     syncPredictionTabs();
+    setAutomationPanelExpanded(readAutomationPanelExpanded());
     renderPaperPreview();
     void loadAutomationSettings({ silent: true });
     void loadPaperTrading({ silent: true });
