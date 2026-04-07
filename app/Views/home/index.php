@@ -33,6 +33,75 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
         <div class="error" id="dashboard-error" hidden></div>
     <?php endif; ?>
 
+    <section class="card automation-panel" id="automation-panel">
+        <div class="prediction-header automation-header">
+            <div>
+                <div class="prediction-kicker">Auto paper trading</div>
+                <h2>Prediction execution control</h2>
+                <p class="meta">Prepare the capital plan and pair allocations here. This panel stores the settings for later automatic, prediction-based paper entries.</p>
+            </div>
+            <div class="prediction-actions">
+                <button type="button" class="prediction-button" id="automation-refresh">Reload settings</button>
+            </div>
+        </div>
+
+        <div class="prediction-status" id="automation-status" aria-live="polite">Loading auto trade settings...</div>
+
+        <form class="automation-form" id="automation-form">
+            <div class="automation-grid">
+                <div class="field field-toggle">
+                    <span>Automation</span>
+                    <label class="switch">
+                        <input type="checkbox" id="automation-enabled">
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">Enable prediction-based auto paper trading</span>
+                    </label>
+                </div>
+                <label class="field">
+                    <span>Max capital (USDT)</span>
+                    <input type="number" id="automation-total-capital" min="10" step="0.01" value="100">
+                </label>
+                <label class="field">
+                    <span>Max open positions</span>
+                    <input type="number" id="automation-max-open-positions" min="1" step="1" value="3">
+                </label>
+                <label class="field">
+                    <span>Default position type</span>
+                    <select id="automation-position-type">
+                        <option value="SPOT">Spot only</option>
+                        <option value="FUTURES_LONG">Futures long</option>
+                        <option value="FUTURES_SHORT">Futures short</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Default margin type</span>
+                    <select id="automation-margin-type">
+                        <option value="ISOLATED">Isolated</option>
+                        <option value="CROSS">Cross</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Default leverage</span>
+                    <input type="number" id="automation-leverage" min="1" max="20" step="1" value="5">
+                </label>
+            </div>
+
+            <div class="automation-summary" id="automation-summary"></div>
+
+            <div class="automation-pairs-head">
+                <div>
+                    <h3>Pair allocation plan</h3>
+                    <p class="meta">Turn pairs on or off. If you manually assign one or more percentages, the remaining enabled pairs will split the leftover capital equally.</p>
+                </div>
+            </div>
+            <div class="automation-pairs" id="automation-pairs"></div>
+
+            <div class="prediction-actions">
+                <button type="submit" class="prediction-button" id="automation-save">Save automation settings</button>
+            </div>
+        </form>
+    </section>
+
     <section class="grid" id="signal-grid">
         <?php foreach ($analysis as $row): ?>
             <?php

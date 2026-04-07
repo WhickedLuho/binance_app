@@ -8,6 +8,8 @@
         formatDate,
         formatNumber,
         formatZone,
+        renderAutomationPairsMarkup,
+        renderAutomationSummaryMarkup,
         renderHistoryMarkup,
         renderOpenPositionsMarkup,
         renderPaperAccountMarkup,
@@ -42,6 +44,18 @@
     const signalGrid = document.getElementById('signal-grid');
     const errorBox = document.getElementById('dashboard-error');
     const lastUpdated = document.getElementById('last-updated');
+    const automationStatus = document.getElementById('automation-status');
+    const automationForm = document.getElementById('automation-form');
+    const automationRefresh = document.getElementById('automation-refresh');
+    const automationSave = document.getElementById('automation-save');
+    const automationEnabled = document.getElementById('automation-enabled');
+    const automationTotalCapital = document.getElementById('automation-total-capital');
+    const automationMaxOpenPositions = document.getElementById('automation-max-open-positions');
+    const automationPositionType = document.getElementById('automation-position-type');
+    const automationMarginType = document.getElementById('automation-margin-type');
+    const automationLeverage = document.getElementById('automation-leverage');
+    const automationSummary = document.getElementById('automation-summary');
+    const automationPairs = document.getElementById('automation-pairs');
     const predictionPanel = document.getElementById('prediction-panel');
     const predictionTitle = document.getElementById('prediction-title');
     const predictionSummary = document.getElementById('prediction-summary');
@@ -86,6 +100,8 @@
     let currentPrediction = null;
     let paperTabEnabled = false;
     let currentPaperTrading = null;
+    let automationInFlight = false;
+    let currentAutomationSettings = null;
 
     const predictionDefaults = (prediction, positionType) => {
         const currentPrice = Number(prediction?.current_price || 0);
@@ -128,6 +144,133 @@
         paperOpenPositions.querySelectorAll('button').forEach((button) => {
             button.disabled = isBusy;
         });
+    };
+
+    const setAutomationBusy = (isBusy) => {
+        automationInFlight = isBusy;
+
+        if (automationSave) {
+            automationSave.disabled = isBusy;
+        }
+
+        if (automationRefresh) {
+            automationRefresh.disabled = isBusy;
+        }
+    };
+
+    const normalizeManualAllocation = (value) => {
+        if (value === '' || value === null || value === undefined) {
+            return null;
+        }
+
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return null;
+        }
+
+        return Math.max(0, Math.min(100, number));
+    };
+
+    const readAutomationDraft = () => {
+        const pairDraft = {};
+        automationPairs.querySelectorAll('[data-automation-symbol]').forEach((card) => {
+            const symbol = card.dataset.automationSymbol;
+            pairDraft[symbol] = {
+                enabled: card.querySelector('[data-role="enabled"]').checked,
+                manual_allocation_percent: normalizeManualAllocation(card.querySelector('[data-role="manual-allocation"]').value),
+            };
+        });
+
+        return {
+            enabled: automationEnabled.checked,
+            total_capital_usdt: Number(automationTotalCapital.value || 0),
+            max_open_positions: Number(automationMaxOpenPositions.value || 1),
+            default_position_type: automationPositionType.value,
+            default_margin_type: automationMarginType.value,
+            default_leverage: Number(automationLeverage.value || 1),
+            pairs: pairDraft,
+        };
+    };
+
+    const computeAutomationPreview = (draft) => {
+        const normalizedPairs = {};
+        const rows = Object.entries(draft.pairs || {});
+        let manualTotal = 0;
+        let autoPairsCount = 0;
+
+        rows.forEach(([symbol, pair]) => {
+            const enabled = Boolean(pair.enabled);
+            const manual = enabled ? normalizeManualAllocation(pair.manual_allocation_percent) : null;
+            if (enabled && manual !== null) {
+                manualTotal += manual;
+            }
+            if (enabled && manual === null) {
+                autoPairsCount += 1;
+            }
+            normalizedPairs[symbol] = {
+                symbol,
+                enabled,
+                manual_allocation_percent: manual,
+                effective_allocation_percent: 0,
+                capital_usdt: 0,
+            };
+        });
+
+        const remainingPercent = Math.max(0, 100 - manualTotal);
+        let remainingToDistribute = remainingPercent;
+        let autoSlots = autoPairsCount;
+        const autoShare = autoPairsCount > 0 ? remainingPercent / autoPairsCount : 0;
+        const totalCapital = Math.max(0, Number(draft.total_capital_usdt || 0));
+
+        Object.values(normalizedPairs).forEach((pair) => {
+            if (!pair.enabled) {
+                return;
+            }
+
+            let effective = pair.manual_allocation_percent;
+            if (effective === null) {
+                autoSlots -= 1;
+                effective = autoSlots === 0 ? remainingToDistribute : Number(autoShare.toFixed(4));
+                remainingToDistribute = Math.max(0, remainingToDistribute - effective);
+            }
+
+            pair.effective_allocation_percent = Number(effective.toFixed(4));
+            pair.capital_usdt = Number(((totalCapital * pair.effective_allocation_percent) / 100).toFixed(4));
+        });
+
+        return {
+            ...draft,
+            pairs: normalizedPairs,
+            summary: {
+                enabled_pairs: Object.values(normalizedPairs).filter((pair) => pair.enabled).length,
+                manual_total_percent: Number(manualTotal.toFixed(4)),
+                auto_pairs: autoPairsCount,
+                remaining_percent: Number(remainingPercent.toFixed(4)),
+                allocated_percent: Number(Object.values(normalizedPairs).reduce((carry, pair) => carry + pair.effective_allocation_percent, 0).toFixed(4)),
+            },
+        };
+    };
+
+    const renderAutomationSettings = (settings) => {
+        currentAutomationSettings = settings;
+        automationEnabled.checked = Boolean(settings?.enabled);
+        automationTotalCapital.value = settings?.total_capital_usdt ?? 100;
+        automationMaxOpenPositions.value = settings?.max_open_positions ?? 3;
+        automationPositionType.value = settings?.default_position_type || 'FUTURES_LONG';
+        automationMarginType.value = settings?.default_margin_type || 'ISOLATED';
+        automationLeverage.value = settings?.default_leverage ?? 5;
+        setHtmlIfChanged(automationSummary, renderAutomationSummaryMarkup(settings?.summary, settings?.total_capital_usdt));
+        setHtmlIfChanged(automationPairs, renderAutomationPairsMarkup(settings?.pairs, settings?.total_capital_usdt));
+        updateText(automationStatus, settings?.enabled
+            ? 'Automation is enabled. Settings are ready for prediction-based execution wiring.'
+            : 'Automation is disabled. Configure the plan, then enable it when you are ready.');
+    };
+
+    const refreshAutomationPreview = () => {
+        const preview = computeAutomationPreview(readAutomationDraft());
+        currentAutomationSettings = preview;
+        setHtmlIfChanged(automationSummary, renderAutomationSummaryMarkup(preview.summary, preview.total_capital_usdt));
+        setHtmlIfChanged(automationPairs, renderAutomationPairsMarkup(preview.pairs, preview.total_capital_usdt));
     };
 
     const renderPaperPreview = () => {
@@ -326,6 +469,51 @@
         }
     };
 
+    const loadAutomationSettings = async ({ silent = false } = {}) => {
+        if (automationInFlight) {
+            return;
+        }
+
+        setAutomationBusy(true);
+        try {
+            const payload = await apiJson('/api/auto-trade-settings');
+            renderAutomationSettings(payload.settings);
+            if (!silent) {
+                updateText(automationStatus, 'Auto trade settings loaded.');
+            }
+        } catch (error) {
+            if (!silent) {
+                updateText(automationStatus, `Auto trade settings failed to load: ${error.message}`);
+            }
+        } finally {
+            setAutomationBusy(false);
+        }
+    };
+
+    const saveAutomationSettings = async (event) => {
+        event.preventDefault();
+        if (automationInFlight) {
+            return;
+        }
+
+        const draft = computeAutomationPreview(readAutomationDraft());
+        setAutomationBusy(true);
+        updateText(automationStatus, 'Saving auto trade settings...');
+
+        try {
+            const payload = await apiJson('/api/auto-trade-settings', {
+                method: 'POST',
+                body: JSON.stringify(draft),
+            });
+            renderAutomationSettings(payload.settings);
+            updateText(automationStatus, payload.message || 'Auto trade settings saved.');
+        } catch (error) {
+            updateText(automationStatus, `Auto trade settings save failed: ${error.message}`);
+        } finally {
+            setAutomationBusy(false);
+        }
+    };
+
     const submitPaperForm = async (event) => {
         event.preventDefault();
         if (!currentPrediction || paperInFlight) {
@@ -462,6 +650,32 @@
         }
     });
 
+    automationRefresh.addEventListener('click', () => {
+        void loadAutomationSettings();
+    });
+
+    automationForm.addEventListener('submit', saveAutomationSettings);
+    automationForm.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        if (target === automationTotalCapital) {
+            refreshAutomationPreview();
+        }
+    });
+    automationForm.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        if (target === automationEnabled || target.closest('#automation-pairs')) {
+            refreshAutomationPreview();
+        }
+    });
+
     predictionTabs.addEventListener('click', (event) => {
         const tabButton = event.target.closest('[data-tab]');
         if (!tabButton || predictionTabs.hidden || tabButton.disabled) {
@@ -494,6 +708,7 @@
 
     syncPredictionTabs();
     renderPaperPreview();
+    void loadAutomationSettings({ silent: true });
     void loadPaperTrading({ silent: true });
     scheduleRefresh();
 })();

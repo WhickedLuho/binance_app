@@ -9,4 +9,5 @@ return [
     'default_leverage' => 5,
     'history_limit' => 30,
     'storage_file' => 'storage/cache/paper_trades.json',
+    'automation_storage_file' => 'storage/cache/auto_trade_settings.json',
 ];

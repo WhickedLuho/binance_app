@@ -115,6 +115,130 @@ div#paper-account {
     background: linear-gradient(180deg, rgba(98, 210, 162, 0.05), rgba(255, 255, 255, 0.01)), var(--panel-2);
 }
 
+.automation-panel {
+    margin-bottom: 24px;
+    background: linear-gradient(180deg, rgba(255, 211, 106, 0.08), rgba(255, 255, 255, 0.01)), var(--panel-2);
+}
+
+.automation-form {
+    display: grid;
+    gap: 18px;
+}
+
+.automation-grid,
+.automation-summary,
+.automation-pairs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.automation-pairs {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.automation-pairs-head h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.automation-pair-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    display: grid;
+    gap: 12px;
+}
+
+.automation-pair-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.automation-pair-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.automation-readonly {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(5, 10, 20, 0.25);
+    padding: 11px 12px;
+    display: grid;
+    gap: 6px;
+}
+
+.automation-readonly span {
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.field-toggle {
+    grid-column: span 2;
+}
+
+.switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.switch-slider {
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    position: relative;
+    transition: background 0.2s ease;
+    flex: 0 0 auto;
+}
+
+.switch-slider::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+}
+
+.switch input:checked + .switch-slider {
+    background: rgba(98, 210, 162, 0.42);
+}
+
+.switch input:checked + .switch-slider::after {
+    transform: translateX(22px);
+}
+
+.switch-label {
+    color: var(--text);
+    font-size: 0.95rem;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.switch-compact .switch-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
 .prediction-header,
 .paper-section-head {
     display: flex;
@@ -454,11 +578,16 @@ div#paper-account {
 
     .paper-columns,
     .paper-form-grid,
-    .inline-edit-grid {
+    .inline-edit-grid,
+    .automation-pair-grid {
         grid-template-columns: 1fr;
     }
 
     .field-wide {
+        grid-column: span 1;
+    }
+
+    .field-toggle {
         grid-column: span 1;
     }
 }

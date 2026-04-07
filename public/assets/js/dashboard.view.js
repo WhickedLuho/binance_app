@@ -315,10 +315,71 @@
         `).join('');
     };
 
+    const renderAutomationSummaryMarkup = (summary, totalCapital) => {
+        if (!summary) {
+            return '';
+        }
+
+        return [
+            ['Enabled pairs', summary.enabled_pairs, false],
+            ['Manual allocation', summary.manual_total_percent, true, '%'],
+            ['Auto pairs', summary.auto_pairs, false],
+            ['Remaining to assign', summary.remaining_percent, true, '%'],
+            ['Allocated total', summary.allocated_percent, true, '%'],
+            ['Capital pool', totalCapital, true, ' USDT'],
+        ].map(([label, value, formattedNumber, suffix]) => `
+            <article class="paper-card">
+                <div class="prediction-label">${escapeHtml(label)}</div>
+                <div class="prediction-value">${escapeHtml(
+                    formattedNumber ? `${formatNumber(value, 2)}${suffix || ''}` : String(value)
+                )}</div>
+            </article>
+        `).join('');
+    };
+
+    const renderAutomationPairsMarkup = (pairs, totalCapital) => {
+        const rows = Object.values(pairs || {});
+        if (!rows.length) {
+            return '<div class="paper-empty">No pairs configured for automation.</div>';
+        }
+
+        return rows.map((pair) => `
+            <article class="automation-pair-card" data-automation-symbol="${escapeHtml(pair.symbol)}">
+                <div class="automation-pair-top">
+                    <div>
+                        <h4 class="paper-card-title">${escapeHtml(pair.symbol)}</h4>
+                        <div class="paper-card-subtitle">Effective capital: ${escapeHtml(formatNumber(pair.capital_usdt, 2))} / ${escapeHtml(formatNumber(totalCapital, 2))} USDT</div>
+                    </div>
+                    <label class="switch switch-compact">
+                        <input type="checkbox" data-role="enabled" ${pair.enabled ? 'checked' : ''}>
+                        <span class="switch-slider"></span>
+                        <span class="switch-label">${pair.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                </div>
+                <div class="automation-pair-grid">
+                    <label class="field inline-edit">
+                        <span>Manual %</span>
+                        <input type="number" data-role="manual-allocation" min="0" max="100" step="0.01" placeholder="Auto" value="${pair.manual_allocation_percent ?? ''}">
+                    </label>
+                    <div class="automation-readonly">
+                        <span>Effective %</span>
+                        <strong>${escapeHtml(formatNumber(pair.effective_allocation_percent, 2))}%</strong>
+                    </div>
+                    <div class="automation-readonly">
+                        <span>Capital</span>
+                        <strong>${escapeHtml(formatNumber(pair.capital_usdt, 2))} USDT</strong>
+                    </div>
+                </div>
+            </article>
+        `).join('');
+    };
+
     window.DashboardView = {
         formatDate,
         formatNumber,
         formatZone,
+        renderAutomationPairsMarkup,
+        renderAutomationSummaryMarkup,
         renderHistoryMarkup,
         renderOpenPositionsMarkup,
         renderPaperAccountMarkup,
