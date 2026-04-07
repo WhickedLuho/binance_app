@@ -22,6 +22,9 @@
     const predictionSupport = document.getElementById('prediction-support');
     const predictionResistance = document.getElementById('prediction-resistance');
     const predictionRefresh = document.getElementById('prediction-refresh');
+    const predictionTabs = document.getElementById('prediction-tabs');
+    const predictionTabButtons = Array.from(document.querySelectorAll('[data-tab]'));
+    const predictionTabPanels = Array.from(document.querySelectorAll('[data-tab-panel]'));
     const paperPanel = document.getElementById('paper-panel');
     const paperStatus = document.getElementById('paper-status');
     const paperForm = document.getElementById('paper-form');
@@ -44,7 +47,9 @@
     let predictionInFlight = false;
     let paperInFlight = false;
     let selectedPredictionSymbol = null;
+    let activePredictionTab = 'prediction';
     let currentPrediction = null;
+    let paperTabEnabled = false;
     let currentPaperTrading = null;
 
     const escapeHtml = (value) => String(value)
@@ -280,13 +285,39 @@
         renderPaperPreview();
     };
 
+    const syncPredictionTabs = () => {
+        predictionTabButtons.forEach((button) => {
+            const isPaperTab = button.dataset.tab === 'paper';
+            const isDisabled = isPaperTab && !paperTabEnabled;
+            const isActive = !isDisabled && button.dataset.tab === activePredictionTab;
+
+            button.classList.toggle('is-active', isActive);
+            button.classList.toggle('is-disabled', isDisabled);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            button.disabled = isDisabled;
+        });
+
+        predictionTabPanels.forEach((panel) => {
+            const isPaperPanel = panel.dataset.tabPanel === 'paper';
+            const shouldHide = panel.dataset.tabPanel !== activePredictionTab || (isPaperPanel && !paperTabEnabled);
+            panel.hidden = shouldHide;
+        });
+    };
+
+    const setActivePredictionTab = (tabName) => {
+        activePredictionTab = tabName === 'paper' && paperTabEnabled ? 'paper' : 'prediction';
+        syncPredictionTabs();
+    };
+
     const renderPrediction = (prediction) => {
         currentPrediction = prediction;
+        paperTabEnabled = true;
         predictionPanel.hidden = false;
+        predictionTabs.hidden = false;
+        setActivePredictionTab('prediction');
         predictionGrid.hidden = false;
         predictionScenarios.hidden = false;
         predictionTimeframes.hidden = false;
-        paperPanel.hidden = false;
         predictionTitle.textContent = `${prediction.symbol} prediction`;
         predictionSummary.textContent = prediction.summary || 'Prediction built from current market data.';
         predictionStatus.textContent = 'Prediction loaded.';
@@ -319,11 +350,14 @@
     };
 
     const setPredictionLoading = (symbol) => {
+        currentPrediction = null;
+        paperTabEnabled = false;
         predictionPanel.hidden = false;
+        predictionTabs.hidden = false;
+        setActivePredictionTab('prediction');
         predictionGrid.hidden = true;
         predictionScenarios.hidden = true;
         predictionTimeframes.hidden = true;
-        paperPanel.hidden = true;
         predictionTitle.textContent = `${symbol} prediction`;
         predictionSummary.textContent = 'Building a detailed scenario from live Binance market data.';
         predictionStatus.textContent = 'Loading prediction...';
@@ -363,11 +397,14 @@
             renderPrediction(payload.prediction);
             paperStatus.textContent = `Paper trading defaults prepared for ${symbol}.`;
         } catch (error) {
+            currentPrediction = null;
+            paperTabEnabled = false;
             predictionPanel.hidden = false;
+            predictionTabs.hidden = false;
+            setActivePredictionTab('prediction');
             predictionGrid.hidden = true;
             predictionScenarios.hidden = true;
             predictionTimeframes.hidden = true;
-            paperPanel.hidden = true;
             predictionStatus.textContent = `Prediction failed: ${error.message}`;
             predictionSummary.textContent = 'Try again on the next refresh or choose another pair.';
         } finally {
@@ -662,6 +699,15 @@
         }
     });
 
+    predictionTabs.addEventListener('click', (event) => {
+        const tabButton = event.target.closest('[data-tab]');
+        if (!tabButton || predictionTabs.hidden || tabButton.disabled) {
+            return;
+        }
+
+        setActivePredictionTab(tabButton.dataset.tab || 'prediction');
+    });
+
     paperPositionType.addEventListener('change', () => syncPaperForm());
     [paperMarginType, paperLeverage, paperCapital, paperEntryPrice, paperStopLoss, paperTakeProfit].forEach((element) => {
         element.addEventListener('input', () => renderPaperPreview());
@@ -686,3 +732,6 @@
     loadPaperTrading({ silent: true });
     scheduleRefresh();
 })();
+
+
+

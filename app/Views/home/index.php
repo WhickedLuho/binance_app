@@ -125,35 +125,46 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             </div>
         </div>
 
-        <div class="prediction-status" id="prediction-status">Prediction is currently idle.</div>
-
-        <div class="prediction-grid" id="prediction-grid" hidden>
-            <article class="prediction-block">
-                <div class="prediction-label">Market bias</div>
-                <div class="prediction-value" id="prediction-bias">-</div>
-                <div class="meta" id="prediction-confidence">Confidence: -</div>
-            </article>
-            <article class="prediction-block">
-                <div class="prediction-label">Current price</div>
-                <div class="prediction-value" id="prediction-price">-</div>
-                <div class="meta" id="prediction-generated">Generated: -</div>
-            </article>
-            <article class="prediction-block">
-                <div class="prediction-label">Support zone</div>
-                <div class="prediction-value" id="prediction-support">-</div>
-                <div class="meta">Nearest downside target area</div>
-            </article>
-            <article class="prediction-block">
-                <div class="prediction-label">Resistance zone</div>
-                <div class="prediction-value" id="prediction-resistance">-</div>
-                <div class="meta">Nearest upside invalidation area</div>
-            </article>
+        <div class="prediction-tabs" id="prediction-tabs" hidden>
+            <button type="button" class="prediction-tab is-active" id="prediction-tab-prediction" data-tab="prediction" aria-selected="true">
+                Prediction
+            </button>
+            <button type="button" class="prediction-tab" id="prediction-tab-paper" data-tab="paper" aria-selected="false">
+                Open position
+            </button>
         </div>
 
-        <div class="prediction-scenarios" id="prediction-scenarios" hidden></div>
-        <div class="prediction-timeframes" id="prediction-timeframes" hidden></div>
+        <section class="tab-panel" id="prediction-content" data-tab-panel="prediction">
+            <div class="prediction-status" id="prediction-status">Prediction is currently idle.</div>
 
-        <section class="paper-panel" id="paper-panel" hidden>
+            <div class="prediction-grid" id="prediction-grid" hidden>
+                <article class="prediction-block">
+                    <div class="prediction-label">Market bias</div>
+                    <div class="prediction-value" id="prediction-bias">-</div>
+                    <div class="meta" id="prediction-confidence">Confidence: -</div>
+                </article>
+                <article class="prediction-block">
+                    <div class="prediction-label">Current price</div>
+                    <div class="prediction-value" id="prediction-price">-</div>
+                    <div class="meta" id="prediction-generated">Generated: -</div>
+                </article>
+                <article class="prediction-block">
+                    <div class="prediction-label">Support zone</div>
+                    <div class="prediction-value" id="prediction-support">-</div>
+                    <div class="meta">Nearest downside target area</div>
+                </article>
+                <article class="prediction-block">
+                    <div class="prediction-label">Resistance zone</div>
+                    <div class="prediction-value" id="prediction-resistance">-</div>
+                    <div class="meta">Nearest upside invalidation area</div>
+                </article>
+            </div>
+
+            <div class="prediction-scenarios" id="prediction-scenarios" hidden></div>
+            <div class="prediction-timeframes" id="prediction-timeframes" hidden></div>
+        </section>
+
+        <section class="paper-panel tab-panel" id="paper-panel" data-tab-panel="paper" hidden>
             <div class="prediction-header paper-header">
                 <div>
                     <div class="prediction-kicker">Paper trading cockpit</div>
@@ -236,3 +247,4 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
     </section>
 </div>
 <script src="/assets/js/dashboard.js" defer></script>
+
