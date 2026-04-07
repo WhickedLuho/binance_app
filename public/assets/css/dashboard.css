@@ -28,6 +28,10 @@
     gap: 18px;
 }
 
+div#paper-account {
+    margin-top: 18px;
+}
+
 #signal-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
