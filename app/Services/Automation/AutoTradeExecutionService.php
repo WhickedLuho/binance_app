@@ -150,17 +150,29 @@ final class AutoTradeExecutionService
                     continue;
                 }
 
-                $candidate = $this->candidateForSettings($settings);
                 $prediction = $this->predictions->predict($symbol);
-                $predictionGate = $this->passesPredictionGate($settings, $candidate, $prediction);
-                if (!$predictionGate['allowed']) {
+                $candidateResults = [];
+                foreach ($this->candidatesForSettings($settings) as $priority => $candidate) {
+                    $predictionGate = $this->passesPredictionGate($settings, $candidate, $prediction);
+                    $candidateResults[] = [
+                        'candidate' => $candidate,
+                        'gate' => $predictionGate,
+                        'priority' => $priority,
+                    ];
+                }
+
+                $selectedCandidate = $this->bestCandidateResult($candidateResults);
+                if ($selectedCandidate === null) {
                     $evaluations[] = [
                         'symbol' => $symbol,
                         'status' => 'SKIPPED',
-                        'reason' => $predictionGate['reason'],
+                        'reason' => $this->summarizeCandidateFailures($candidateResults),
                     ];
                     continue;
                 }
+
+                $candidate = $selectedCandidate['candidate'];
+                $predictionGate = $selectedCandidate['gate'];
 
                 try {
                     $paperTrading = $this->paperTrades->openPosition([
@@ -362,34 +374,111 @@ final class AutoTradeExecutionService
         return [$paperTrading, $actions];
     }
 
-    private function candidateForSettings(array $settings): array
+    private function candidatesForSettings(array $settings): array
     {
-        return match ((string) ($settings['default_position_type'] ?? 'FUTURES_LONG')) {
-            'SPOT' => [
+        $entryTypes = $settings['enabled_entry_types'] ?? [$settings['default_position_type'] ?? 'SPOT'];
+        $candidates = [];
+
+        foreach ((array) $entryTypes as $entryType) {
+            $normalized = strtoupper(trim((string) $entryType));
+            $candidate = match ($normalized) {
+                'FUTURES_LONG' => [
+                    'entry_type' => 'FUTURES_LONG',
+                    'trade_type' => 'FUTURES',
+                    'side' => 'LONG',
+                    'scenario_key' => 'long',
+                    'expected_bias' => 'BULLISH',
+                    'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_long'] ?? 0.0),
+                    'label' => 'futures long',
+                ],
+                'FUTURES_SHORT' => [
+                    'entry_type' => 'FUTURES_SHORT',
+                    'trade_type' => 'FUTURES',
+                    'side' => 'SHORT',
+                    'scenario_key' => 'short',
+                    'expected_bias' => 'BEARISH',
+                    'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_short'] ?? 0.0),
+                    'label' => 'futures short',
+                ],
+                'SPOT' => [
+                    'entry_type' => 'SPOT',
+                    'trade_type' => 'SPOT',
+                    'side' => 'LONG',
+                    'scenario_key' => 'long',
+                    'expected_bias' => 'BULLISH',
+                    'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_spot'] ?? 0.0),
+                    'label' => 'spot long',
+                ],
+                default => null,
+            };
+
+            if ($candidate !== null) {
+                $candidates[] = $candidate;
+            }
+        }
+
+        if ($candidates === []) {
+            $candidates[] = [
+                'entry_type' => 'SPOT',
                 'trade_type' => 'SPOT',
                 'side' => 'LONG',
                 'scenario_key' => 'long',
                 'expected_bias' => 'BULLISH',
                 'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_spot'] ?? 0.0),
                 'label' => 'spot long',
-            ],
-            'FUTURES_SHORT' => [
-                'trade_type' => 'FUTURES',
-                'side' => 'SHORT',
-                'scenario_key' => 'short',
-                'expected_bias' => 'BEARISH',
-                'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_short'] ?? 0.0),
-                'label' => 'futures short',
-            ],
-            default => [
-                'trade_type' => 'FUTURES',
-                'side' => 'LONG',
-                'scenario_key' => 'long',
-                'expected_bias' => 'BULLISH',
-                'min_reward_percent' => (float) ($settings['min_profit_trigger_percent_long'] ?? 0.0),
-                'label' => 'futures long',
-            ],
-        };
+            ];
+        }
+
+        return $candidates;
+    }
+
+    private function bestCandidateResult(array $candidateResults): ?array
+    {
+        $allowed = array_values(array_filter(
+            $candidateResults,
+            static fn (array $row): bool => (bool) ($row['gate']['allowed'] ?? false)
+        ));
+
+        if ($allowed === []) {
+            return null;
+        }
+
+        usort($allowed, static function (array $left, array $right): int {
+            $leftReward = (float) ($left['gate']['scenario']['reward_percent'] ?? 0.0);
+            $rightReward = (float) ($right['gate']['scenario']['reward_percent'] ?? 0.0);
+            $rewardCompare = $rightReward <=> $leftReward;
+            if ($rewardCompare !== 0) {
+                return $rewardCompare;
+            }
+
+            return ((int) ($left['priority'] ?? 0)) <=> ((int) ($right['priority'] ?? 0));
+        });
+
+        return $allowed[0];
+    }
+
+    private function summarizeCandidateFailures(array $candidateResults): string
+    {
+        if ($candidateResults === []) {
+            return 'No entry type is enabled for automation.';
+        }
+
+        $reasons = [];
+        foreach ($candidateResults as $row) {
+            if ((bool) ($row['gate']['allowed'] ?? false)) {
+                continue;
+            }
+
+            $label = (string) (($row['candidate']['label'] ?? 'entry') ?: 'entry');
+            $reason = (string) (($row['gate']['reason'] ?? 'Entry checks failed.') ?: 'Entry checks failed.');
+            $reasons[] = sprintf('%s: %s', ucfirst($label), $reason);
+        }
+
+        $reasons = array_values(array_unique($reasons));
+
+        return $reasons === []
+            ? 'No enabled entry type passed the entry checks.'
+            : implode(' | ', $reasons);
     }
 
     private function passesSignalVolatilityGate(array $settings, ?array $signal): array

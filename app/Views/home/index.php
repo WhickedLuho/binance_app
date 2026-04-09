@@ -60,84 +60,190 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
             </div>
 
             <form class="automation-form" id="automation-form">
-                <div class="automation-grid">
-                    <div class="field field-toggle">
-                        <span>Automation</span>
-                        <label class="switch">
-                            <input type="checkbox" id="automation-enabled">
-                            <span class="switch-slider"></span>
-                            <span class="switch-label">Enable prediction-based auto paper trading</span>
-                        </label>
-                    </div>
-                    <label class="field">
-                        <span>Max capital (USDT)</span>
-                        <input type="number" id="automation-total-capital" min="10" step="0.01" value="100">
-                    </label>
-                    <label class="field">
-                        <span>Max open positions</span>
-                        <input type="number" id="automation-max-open-positions" min="1" step="1" value="3">
-                    </label>
-                    <label class="field">
-                        <span>Default position type</span>
-                        <select id="automation-position-type">
-                            <option value="SPOT">Spot only</option>
-                            <option value="FUTURES_LONG">Futures long</option>
-                            <option value="FUTURES_SHORT">Futures short</option>
-                        </select>
-                    </label>
-                    <label class="field">
-                        <span>Default margin type</span>
-                        <select id="automation-margin-type">
-                            <option value="ISOLATED">Isolated</option>
-                            <option value="CROSS">Cross</option>
-                        </select>
-                    </label>
-                    <label class="field">
-                        <span>Default leverage</span>
-                        <input type="number" id="automation-leverage" min="1" max="20" step="1" value="5">
-                    </label>
-                </div>
-
-                <div class="automation-grid automation-grid-secondary">
-                    <label class="field">
-                        <span>Min reward % (spot)</span>
-                        <input type="number" id="automation-min-profit-spot" min="0" step="0.1" value="2.5">
-                    </label>
-                    <label class="field">
-                        <span>Min reward % (long)</span>
-                        <input type="number" id="automation-min-profit-long" min="0" step="0.1" value="2.5">
-                    </label>
-                    <label class="field">
-                        <span>Min reward % (short)</span>
-                        <input type="number" id="automation-min-profit-short" min="0" step="0.1" value="2.5">
-                    </label>
-                    <label class="field">
-                        <span>Max prediction ATR %</span>
-                        <input type="number" id="automation-max-prediction-atr" min="0.1" step="0.1" value="3.5">
-                    </label>
-                    <label class="field">
-                        <span>Max last candle move %</span>
-                        <input type="number" id="automation-max-candle-change" min="0.1" step="0.1" value="2.5">
-                    </label>
-                    <label class="field">
-                        <span>Cooldown (minutes)</span>
-                        <input type="number" id="automation-cooldown-minutes" min="0" step="1" value="30">
-                    </label>
-                    <div class="field field-toggle">
-                        <span>Auto exits</span>
-                        <div class="automation-switch-row">
-                            <label class="switch switch-compact">
-                                <input type="checkbox" id="automation-close-on-take-profit" checked>
-                                <span class="switch-slider"></span>
-                                <span class="switch-label">Close on take profit</span>
+                <div class="automation-settings-shell">
+                    <section class="automation-settings-section">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Capital plan</h3>
+                                <p class="meta">Keep the automation easy to audit first: capital, concurrency and the master switch live together here.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <div class="field field-toggle">
+                                <span>Automation</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="automation-enabled">
+                                    <span class="switch-slider"></span>
+                                    <span class="switch-label">Enable prediction-based auto paper trading</span>
+                                </label>
+                            </div>
+                            <label class="field">
+                                <span>Max capital (USDT)</span>
+                                <input type="number" id="automation-total-capital" min="10" step="0.01" value="100">
                             </label>
-                            <label class="switch switch-compact">
-                                <input type="checkbox" id="automation-close-on-stop-loss" checked>
-                                <span class="switch-slider"></span>
-                                <span class="switch-label">Close on stop loss</span>
+                            <label class="field">
+                                <span>Max open positions</span>
+                                <input type="number" id="automation-max-open-positions" min="1" step="1" value="2">
                             </label>
                         </div>
-                    </div>
+                    </section>
+
+                    <section class="automation-settings-section">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Entry types</h3>
+                                <p class="meta">Enable the modes you want the engine to evaluate.</p>
+                            </div>
+                        </div>
+                        <div class="automation-entry-list">
+                            <label class="automation-entry-switch" for="automation-entry-futures-long">
+                                <span class="automation-entry-copy">
+                                    <strong>Futures long</strong>
+                                    <span>Bullish leveraged entry</span>
+                                </span>
+                                <span class="automation-entry-toggle">
+                                    <input type="checkbox" id="automation-entry-futures-long">
+                                    <span class="switch-slider"></span>
+                                </span>
+                            </label>
+                            <label class="automation-entry-switch" for="automation-entry-futures-short">
+                                <span class="automation-entry-copy">
+                                    <strong>Futures short</strong>
+                                    <span>Bearish leveraged entry</span>
+                                </span>
+                                <span class="automation-entry-toggle">
+                                    <input type="checkbox" id="automation-entry-futures-short">
+                                    <span class="switch-slider"></span>
+                                </span>
+                            </label>
+                            <label class="automation-entry-switch" for="automation-entry-spot">
+                                <span class="automation-entry-copy">
+                                    <strong>Spot long</strong>
+                                    <span>Unleveraged safer baseline</span>
+                                </span>
+                                <span class="automation-entry-toggle">
+                                    <input type="checkbox" id="automation-entry-spot">
+                                    <span class="switch-slider"></span>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section" id="automation-futures-settings">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Futures defaults</h3>
+                                <p class="meta">Only used when a futures mode is enabled.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <label class="field">
+                                <span>Default margin type</span>
+                                <select id="automation-margin-type">
+                                    <option value="ISOLATED">Isolated</option>
+                                    <option value="CROSS">Cross</option>
+                                </select>
+                            </label>
+                            <label class="field">
+                                <span>Default leverage</span>
+                                <input type="number" id="automation-leverage" min="1" max="20" step="1" value="4">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section" id="automation-futures-long-settings">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Futures long trigger</h3>
+                                <p class="meta">Reward trigger for bullish futures entries.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <label class="field">
+                                <span>Min reward % (long)</span>
+                                <input type="number" id="automation-min-profit-long" min="0" step="0.1" value="1.2">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section" id="automation-futures-short-settings">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Futures short trigger</h3>
+                                <p class="meta">Reward trigger for bearish futures entries.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <label class="field">
+                                <span>Min reward % (short)</span>
+                                <input type="number" id="automation-min-profit-short" min="0" step="0.1" value="1.2">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section" id="automation-spot-settings">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Spot trigger</h3>
+                                <p class="meta">Reward trigger for spot entries.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <label class="field">
+                                <span>Min reward % (spot)</span>
+                                <input type="number" id="automation-min-profit-spot" min="0" step="0.1" value="0.8">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Safety guardrails</h3>
+                                <p class="meta">Skip noisy or overextended setups.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid automation-grid-secondary">
+                            <label class="field">
+                                <span>Max prediction ATR %</span>
+                                <input type="number" id="automation-max-prediction-atr" min="0.1" step="0.1" value="3.0">
+                            </label>
+                            <label class="field">
+                                <span>Max last candle move %</span>
+                                <input type="number" id="automation-max-candle-change" min="0.1" step="0.1" value="1.0">
+                            </label>
+                            <label class="field">
+                                <span>Cooldown (minutes)</span>
+                                <input type="number" id="automation-cooldown-minutes" min="0" step="1" value="20">
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="automation-settings-section">
+                        <div class="automation-settings-head">
+                            <div>
+                                <h3>Auto exits</h3>
+                                <p class="meta">Automatic TP and SL handling for auto-opened positions.</p>
+                            </div>
+                        </div>
+                        <div class="automation-grid">
+                            <div class="field field-toggle">
+                                <span>Exit rules</span>
+                                <div class="automation-switch-row">
+                                    <label class="switch switch-compact">
+                                        <input type="checkbox" id="automation-close-on-take-profit" checked>
+                                        <span class="switch-slider"></span>
+                                        <span class="switch-label">Close on take profit</span>
+                                    </label>
+                                    <label class="switch switch-compact">
+                                        <input type="checkbox" id="automation-close-on-stop-loss" checked>
+                                        <span class="switch-slider"></span>
+                                        <span class="switch-label">Close on stop loss</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <div class="automation-summary" id="automation-summary"></div>
@@ -380,3 +486,6 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
 </div>
 <script src="/assets/js/dashboard.view.js" defer></script>
 <script src="/assets/js/dashboard.js" defer></script>
+
+
+

@@ -9,6 +9,8 @@ use InvalidArgumentException;
 
 final class AutoTradeSettingsService
 {
+    private const ENTRY_TYPES = ['FUTURES_LONG', 'FUTURES_SHORT', 'SPOT'];
+
     public function __construct(
         private readonly Config $config,
         private readonly AutoTradeSettingsRepository $repository
@@ -95,27 +97,26 @@ final class AutoTradeSettingsService
             $pairs[$symbol]['capital_usdt'] = round(($totalCapital * $pair['effective_allocation_percent']) / 100, 4);
         }
 
+        $enabledEntryTypes = $this->normalizeEntryTypes($payload);
+
         return [
             'enabled' => (bool) ($payload['enabled'] ?? false),
             'total_capital_usdt' => round($totalCapital, 2),
-            'max_open_positions' => max(1, (int) ($payload['max_open_positions'] ?? 3)),
-            'default_position_type' => $this->enumValue(
-                $payload['default_position_type'] ?? 'FUTURES_LONG',
-                ['SPOT', 'FUTURES_LONG', 'FUTURES_SHORT'],
-                'Default position type'
-            ),
+            'max_open_positions' => max(1, (int) ($payload['max_open_positions'] ?? 2)),
+            'enabled_entry_types' => $enabledEntryTypes,
+            'default_position_type' => $enabledEntryTypes[0],
             'default_margin_type' => $this->enumValue(
                 $payload['default_margin_type'] ?? 'ISOLATED',
                 ['ISOLATED', 'CROSS'],
                 'Default margin type'
             ),
-            'default_leverage' => max(1, min((int) $this->config->get('paper.max_leverage', 20), (int) ($payload['default_leverage'] ?? 5))),
-            'min_profit_trigger_percent_spot' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_spot'] ?? 2.5, 'Spot reward trigger'),
-            'min_profit_trigger_percent_long' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_long'] ?? 2.5, 'Long reward trigger'),
-            'min_profit_trigger_percent_short' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_short'] ?? 2.5, 'Short reward trigger'),
-            'max_prediction_atr_percent' => $this->positiveFloat($payload['max_prediction_atr_percent'] ?? $this->config->get('strategy.max_atr_percent', 3.5), 'Maximum prediction ATR'),
-            'max_signal_candle_change_percent' => $this->positiveFloat($payload['max_signal_candle_change_percent'] ?? $this->config->get('strategy.max_single_candle_change_percent', 2.5), 'Maximum candle change'),
-            'cooldown_minutes' => max(0, (int) ($payload['cooldown_minutes'] ?? 30)),
+            'default_leverage' => max(1, min((int) $this->config->get('paper.max_leverage', 20), (int) ($payload['default_leverage'] ?? 4))),
+            'min_profit_trigger_percent_spot' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_spot'] ?? 0.8, 'Spot reward trigger'),
+            'min_profit_trigger_percent_long' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_long'] ?? 1.2, 'Long reward trigger'),
+            'min_profit_trigger_percent_short' => $this->nonNegativeFloat($payload['min_profit_trigger_percent_short'] ?? 1.2, 'Short reward trigger'),
+            'max_prediction_atr_percent' => $this->positiveFloat($payload['max_prediction_atr_percent'] ?? 3.0, 'Maximum prediction ATR'),
+            'max_signal_candle_change_percent' => $this->positiveFloat($payload['max_signal_candle_change_percent'] ?? 1.0, 'Maximum candle change'),
+            'cooldown_minutes' => max(0, (int) ($payload['cooldown_minutes'] ?? 20)),
             'close_on_take_profit' => (bool) ($payload['close_on_take_profit'] ?? true),
             'close_on_stop_loss' => (bool) ($payload['close_on_stop_loss'] ?? true),
             'pairs' => $pairs,
@@ -130,6 +131,33 @@ final class AutoTradeSettingsService
                 )), 4),
             ],
         ];
+    }
+
+    private function normalizeEntryTypes(array $payload): array
+    {
+        $requested = $payload['enabled_entry_types'] ?? null;
+        if (is_array($requested)) {
+            $normalized = [];
+            foreach ($requested as $entryType) {
+                $value = strtoupper(trim((string) $entryType));
+                if ($value !== '' && in_array($value, self::ENTRY_TYPES, true) && !in_array($value, $normalized, true)) {
+                    $normalized[] = $value;
+                }
+            }
+
+            if ($normalized === []) {
+                throw new InvalidArgumentException('Enable at least one entry type for automation.');
+            }
+
+            return $normalized;
+        }
+
+        $legacy = strtoupper(trim((string) ($payload['default_position_type'] ?? 'SPOT')));
+        if (!in_array($legacy, self::ENTRY_TYPES, true)) {
+            $legacy = 'SPOT';
+        }
+
+        return [$legacy];
     }
 
     private function nullablePercent(mixed $value): ?float
@@ -176,3 +204,4 @@ final class AutoTradeSettingsService
         return $normalized;
     }
 }
+

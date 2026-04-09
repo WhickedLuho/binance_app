@@ -56,7 +56,9 @@
     const automationEnabled = document.getElementById('automation-enabled');
     const automationTotalCapital = document.getElementById('automation-total-capital');
     const automationMaxOpenPositions = document.getElementById('automation-max-open-positions');
-    const automationPositionType = document.getElementById('automation-position-type');
+    const automationEntryFuturesLong = document.getElementById('automation-entry-futures-long');
+    const automationEntryFuturesShort = document.getElementById('automation-entry-futures-short');
+    const automationEntrySpot = document.getElementById('automation-entry-spot');
     const automationMarginType = document.getElementById('automation-margin-type');
     const automationLeverage = document.getElementById('automation-leverage');
     const automationMinProfitSpot = document.getElementById('automation-min-profit-spot');
@@ -68,6 +70,10 @@
     const automationCloseOnTakeProfit = document.getElementById('automation-close-on-take-profit');
     const automationCloseOnStopLoss = document.getElementById('automation-close-on-stop-loss');
     const automationSummary = document.getElementById('automation-summary');
+    const automationFuturesSettings = document.getElementById('automation-futures-settings');
+    const automationFuturesLongSettings = document.getElementById('automation-futures-long-settings');
+    const automationFuturesShortSettings = document.getElementById('automation-futures-short-settings');
+    const automationSpotSettings = document.getElementById('automation-spot-settings');
     const automationPairs = document.getElementById('automation-pairs');
     const automationRuntime = document.getElementById('automation-runtime');
     const automationOpenPositions = document.getElementById('automation-open-positions');
@@ -201,6 +207,78 @@
         }
     };
 
+    const readAutomationEntryTypes = () => {
+        const entryTypes = [];
+        if (automationEntryFuturesLong?.checked) {
+            entryTypes.push('FUTURES_LONG');
+        }
+        if (automationEntryFuturesShort?.checked) {
+            entryTypes.push('FUTURES_SHORT');
+        }
+        if (automationEntrySpot?.checked) {
+            entryTypes.push('SPOT');
+        }
+        return entryTypes;
+    };
+
+    const applyAutomationEntryTypes = (entryTypes) => {
+        const enabled = Array.isArray(entryTypes) && entryTypes.length
+            ? entryTypes
+            : ['SPOT'];
+        if (automationEntryFuturesLong) {
+            automationEntryFuturesLong.checked = enabled.includes('FUTURES_LONG');
+        }
+        if (automationEntryFuturesShort) {
+            automationEntryFuturesShort.checked = enabled.includes('FUTURES_SHORT');
+        }
+        if (automationEntrySpot) {
+            automationEntrySpot.checked = enabled.includes('SPOT');
+        }
+    };
+
+    const describeAutomationEntryTypes = (entryTypes) => {
+        const labels = (Array.isArray(entryTypes) ? entryTypes : []).map((entryType) => {
+            switch (entryType) {
+                case 'FUTURES_LONG':
+                    return 'futures long';
+                case 'FUTURES_SHORT':
+                    return 'futures short';
+                case 'SPOT':
+                    return 'spot long';
+                default:
+                    return null;
+            }
+        }).filter(Boolean);
+
+        return labels.length ? labels.join(', ') : 'no entry type';
+    };
+
+    const syncAutomationModeVisibility = () => {
+        const futuresLongEnabled = Boolean(automationEntryFuturesLong?.checked);
+        const futuresShortEnabled = Boolean(automationEntryFuturesShort?.checked);
+        const spotEnabled = Boolean(automationEntrySpot?.checked);
+        const futuresEnabled = futuresLongEnabled || futuresShortEnabled;
+
+        if (automationFuturesSettings) {
+            automationFuturesSettings.hidden = !futuresEnabled;
+        }
+        if (automationFuturesLongSettings) {
+            automationFuturesLongSettings.hidden = !futuresLongEnabled;
+        }
+        if (automationFuturesShortSettings) {
+            automationFuturesShortSettings.hidden = !futuresShortEnabled;
+        }
+        if (automationSpotSettings) {
+            automationSpotSettings.hidden = !spotEnabled;
+        }
+        if (automationMarginType) {
+            automationMarginType.disabled = !futuresEnabled;
+        }
+        if (automationLeverage) {
+            automationLeverage.disabled = !futuresEnabled;
+        }
+    };
+
     const normalizeManualAllocation = (value) => {
         if (value === '' || value === null || value === undefined) {
             return null;
@@ -224,11 +302,14 @@
             };
         });
 
+        const enabledEntryTypes = readAutomationEntryTypes();
+
         return {
             enabled: automationEnabled.checked,
             total_capital_usdt: Number(automationTotalCapital.value || 0),
             max_open_positions: Number(automationMaxOpenPositions.value || 1),
-            default_position_type: automationPositionType.value,
+            enabled_entry_types: enabledEntryTypes,
+            default_position_type: enabledEntryTypes[0] || 'SPOT',
             default_margin_type: automationMarginType.value,
             default_leverage: Number(automationLeverage.value || 1),
             min_profit_trigger_percent_spot: Number(automationMinProfitSpot.value || 0),
@@ -347,7 +428,7 @@
         automationEnabled.checked = Boolean(settings?.enabled);
         automationTotalCapital.value = settings?.total_capital_usdt ?? 100;
         automationMaxOpenPositions.value = settings?.max_open_positions ?? 3;
-        automationPositionType.value = settings?.default_position_type || 'FUTURES_LONG';
+        applyAutomationEntryTypes(settings?.enabled_entry_types || [settings?.default_position_type || 'SPOT']);
         automationMarginType.value = settings?.default_margin_type || 'ISOLATED';
         automationLeverage.value = settings?.default_leverage ?? 5;
         automationMinProfitSpot.value = settings?.min_profit_trigger_percent_spot ?? 2.5;
@@ -358,11 +439,13 @@
         automationCooldownMinutes.value = settings?.cooldown_minutes ?? 30;
         automationCloseOnTakeProfit.checked = Boolean(settings?.close_on_take_profit ?? true);
         automationCloseOnStopLoss.checked = Boolean(settings?.close_on_stop_loss ?? true);
+        syncAutomationModeVisibility();
         setHtmlIfChanged(automationSummary, renderAutomationSummaryMarkup(settings?.summary, settings?.total_capital_usdt));
         setHtmlIfChanged(automationPairs, renderAutomationPairsMarkup(settings?.pairs, settings?.total_capital_usdt));
+        const entryTypeLabel = describeAutomationEntryTypes(settings?.enabled_entry_types || [settings?.default_position_type || 'SPOT']);
         updateText(automationStatus, settings?.enabled
-            ? 'Automation is enabled. The background scheduler handles the heartbeat, while this dashboard only shows the live state.'
-            : 'Automation is disabled. Configure the trigger and volatility limits, then enable it when you are ready.');
+            ? `Automation is enabled for ${entryTypeLabel}. The background scheduler handles the heartbeat, while this dashboard only shows the live state.`
+            : 'Automation is disabled. Configure the active entry types and guardrails, then enable it when you are ready.');
     };
 
     const refreshAutomationPreview = () => {
@@ -784,6 +867,10 @@
             return;
         }
 
+        if (target.closest('.automation-entry-switch')) {
+            syncAutomationModeVisibility();
+        }
+
         if (target === automationTotalCapital || target.closest('#automation-pairs')) {
             refreshAutomationPreview();
         }
@@ -791,6 +878,12 @@
     automationForm.addEventListener('change', (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        if (target.closest('.automation-entry-switch')) {
+            syncAutomationModeVisibility();
+            refreshAutomationPreview();
             return;
         }
 
@@ -840,6 +933,7 @@
 
     updatePaperTabAvailability();
     setAutomationPanelExpanded(readAutomationPanelExpanded());
+    syncAutomationModeVisibility();
     renderPaperPreview();
     renderAutomationRuntime(currentAutomationRuntime);
     renderAutomationOpenPositions({ open_positions: [] });
@@ -848,3 +942,7 @@
     void loadPaperTrading({ silent: true });
     scheduleRefresh();
 })();
+
+
+
+

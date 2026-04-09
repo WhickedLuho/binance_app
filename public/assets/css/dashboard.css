@@ -132,17 +132,47 @@ div#paper-account {
 
 .automation-form {
     display: grid;
-    gap: 18px;
+    gap: 14px;
 }
 
+.automation-settings-shell {
+    display: grid;
+    gap: 12px;
+}
+
+.automation-settings-section {
+    display: grid;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.automation-settings-section[hidden] {
+    display: none;
+}
+
+.automation-settings-head h3 {
+    margin: 0;
+    font-size: 0.96rem;
+}
+
+.automation-settings-head .meta {
+    margin-top: 4px;
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.automation-entry-list,
 .automation-grid,
 .automation-summary,
 .automation-pairs,
 .automation-open-positions,
 .automation-runtime {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
 }
 
 .automation-pairs,
@@ -154,8 +184,60 @@ div#paper-account {
     align-items: start;
 }
 
+.automation-entry-list {
+    grid-template-columns: 1fr;
+}
+
+.automation-entry-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(5, 10, 20, 0.28);
+    cursor: pointer;
+}
+
+.automation-entry-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.automation-entry-copy strong {
+    font-size: 0.95rem;
+}
+
+.automation-entry-copy span {
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.automation-entry-toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.automation-entry-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.automation-entry-toggle input:checked + .switch-slider {
+    background: rgba(98, 210, 162, 0.42);
+}
+
+.automation-entry-toggle input:checked + .switch-slider::after {
+    transform: translateX(22px);
+}
+
 .automation-runtime {
-    margin-bottom: 18px;
+    margin-bottom: 12px;
 }
 
 .automation-runtime-card {
@@ -191,11 +273,11 @@ div#paper-account {
 
 .automation-pair-card {
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 14px;
+    border-radius: 14px;
+    padding: 12px;
     background: rgba(255, 255, 255, 0.03);
     display: grid;
-    gap: 12px;
+    gap: 10px;
 }
 
 .automation-pair-top,
@@ -704,3 +786,6 @@ div#paper-account {
         grid-template-columns: 1fr;
     }
 }
+
+
+
