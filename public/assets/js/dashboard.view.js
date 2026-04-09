@@ -34,11 +34,9 @@
         return number > 0 ? 'positive-number' : 'negative-number';
     };
 
-    const positionSourceMeta = (source) => {
-        return source === 'AUTO_PREDICTION'
-            ? { label: 'AUTO', className: 'neutral' }
-            : { label: 'MANUAL', className: 'long' };
-    };
+    const positionSourceMeta = (source) => source === 'AUTO_PREDICTION'
+        ? { label: 'AUTO', className: 'neutral' }
+        : { label: 'MANUAL', className: 'long' };
 
     const formatZone = (zone) => {
         if (!zone || zone.low == null || zone.high == null) {
@@ -92,10 +90,48 @@
         }
     };
 
+    const signalActionMeta = (action) => {
+        switch (String(action || '').toUpperCase()) {
+            case 'LONG':
+            case 'SPOT_BUY':
+                return { label: String(action || 'LONG'), className: 'long' };
+            case 'SHORT':
+            case 'SPOT_SELL':
+                return { label: String(action || 'SHORT'), className: 'short' };
+            default:
+                return { label: String(action || 'NO_TRADE'), className: 'neutral' };
+        }
+    };
+
+    const signalRiskMeta = (row) => {
+        if (row?.error) {
+            return { label: 'PAIR ERROR', className: 'short' };
+        }
+
+        if (row?.risk?.allowed === false) {
+            return { label: 'BLOCKED', className: 'short' };
+        }
+
+        return { label: 'CLEAR', className: 'long' };
+    };
+
+    const renderSummaryStripMarkup = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return '';
+        }
+
+        return items.map((item) => `
+            <article class="summary-stat ${escapeHtml(item.className || '')}">
+                <span>${escapeHtml(item.label || '')}</span>
+                <strong>${escapeHtml(item.value ?? '-')}</strong>
+            </article>
+        `).join('');
+    };
+
     const renderTimeframes = (timeframes) => {
         const entries = Object.entries(timeframes || {});
         if (!entries.length) {
-            return 'No timeframe data.';
+            return '<div class="metric"><span>Timeframes</span><span>No data</span></div>';
         }
 
         return entries.map(([label, payload]) => `
@@ -103,112 +139,135 @@
         `).join('');
     };
 
-    const renderSignalCard = (row) => {
+    const renderEmptySignalsCompact = (configuredPairs) => `
+        <article class="compact-signal-row empty-state-row">
+            <div>
+                <strong>No live signal data</strong>
+                <span>${escapeHtml((configuredPairs || []).join(', ') || 'No configured pairs')}</span>
+            </div>
+        </article>
+    `;
+
+    const renderCompactSignalRow = (row) => {
         const action = row.action || row.direction || 'NO_TRADE';
-        const badgeClass = (action === 'LONG' || action === 'SPOT_BUY') ? 'long' : ((action === 'SHORT' || action === 'SPOT_SELL') ? 'short' : 'neutral');
-        const reasons = row.reasons && row.reasons.length ? row.reasons.join(', ') : 'Indicators do not agree strongly enough.';
-        const riskText = row.risk && row.risk.allowed
-            ? 'No blocking condition.'
-            : ((row.risk && row.risk.flags && row.risk.flags.length) ? row.risk.flags.join(', ') : 'Unknown risk state.');
-        const errorBlock = row.error
-            ? `<div class="risk pair-error"><strong>Pair error</strong><br>${escapeHtml(row.error)}</div>`
-            : '';
+        const badge = signalActionMeta(action);
+        const risk = signalRiskMeta(row);
 
         return `
-            <article class="card" data-symbol="${escapeHtml(row.symbol)}">
-                <div class="signal-card-head">
+            <article class="compact-signal-row">
+                <div class="compact-signal-main">
                     <div>
-                        <div class="signal-symbol">${escapeHtml(row.symbol)}</div>
-                        <div class="meta">Decision timeframe: ${escapeHtml(row.interval || 'n/a')}</div>
+                        <strong>${escapeHtml(row.symbol || '-')}</strong>
+                        <span>${escapeHtml(row.market_regime || 'UNKNOWN')} | ${escapeHtml(row.interval || 'n/a')}</span>
                     </div>
-                    <span class="badge ${badgeClass}">${escapeHtml(action)}</span>
+                    <span class="badge ${badge.className}">${escapeHtml(badge.label)}</span>
                 </div>
-
-                <div class="meta signal-meta-block">
-                    Price: ${formatNumber(row.price, 4)}<br>
-                    Market regime: ${escapeHtml(row.market_regime || 'UNKNOWN')}<br>
-                    Confidence: ${escapeHtml(row.confidence ?? '-')} / 100
+                <div class="compact-signal-metrics">
+                    <div class="mini-metric"><span>Price</span><strong>${escapeHtml(formatNumber(row.price, 4))}</strong></div>
+                    <div class="mini-metric"><span>Confidence</span><strong>${escapeHtml(formatNumber(row.confidence, 0))}</strong></div>
+                    <div class="mini-metric"><span>ATR %</span><strong>${escapeHtml(formatNumber(row.metrics?.atr_percent, 2))}</strong></div>
+                    <div class="mini-metric"><span>Risk</span><strong class="${risk.className === 'long' ? 'positive-number' : (risk.className === 'short' ? 'negative-number' : 'muted-number')}">${escapeHtml(risk.label)}</strong></div>
                 </div>
-
-                <div class="reasons">
-                    <strong>Scores</strong>
-                    <div class="metric"><span>Bull</span><span>${escapeHtml(row.bull_score ?? row.long_score ?? 0)}</span></div>
-                    <div class="metric"><span>Bear</span><span>${escapeHtml(row.bear_score ?? row.short_score ?? 0)}</span></div>
-                    <div class="metric"><span>Risk penalty</span><span>${escapeHtml(row.risk_penalty ?? 0)}</span></div>
-                    <div class="metric"><span>RSI 14</span><span>${formatNumber(row.metrics?.rsi14, 2)}</span></div>
-                    <div class="metric"><span>ATR %</span><span>${formatNumber(row.metrics?.atr_percent, 2)}</span></div>
-                    <div class="metric"><span>Volume ratio</span><span>${formatNumber(row.metrics?.volume_ratio, 2)}</span></div>
+                <div class="compact-signal-actions">
+                    <button type="button" class="prediction-button compact-button" data-action="prediction" data-symbol="${escapeHtml(row.symbol || '')}">Prediction</button>
                 </div>
-
-                <div class="reasons">
-                    <strong>Timeframes</strong><br>
-                    ${renderTimeframes(row.timeframes)}
-                </div>
-
-                <div class="reasons">
-                    <strong>Reasons</strong><br>
-                    ${escapeHtml(reasons)}
-                </div>
-
-                <div class="risk">
-                    <strong>Risk filter</strong><br>
-                    ${escapeHtml(riskText)}
-                </div>
-
-                <div class="prediction-actions">
-                    <button type="button" class="prediction-button" data-action="prediction" data-symbol="${escapeHtml(row.symbol)}">Prediction</button>
-                </div>
-
-                ${errorBlock}
             </article>
         `;
     };
 
-    const renderEmptySignals = (configuredPairs) => `
-        <article class="card">
-            <div class="signal-symbol">No data</div>
-            <div class="meta">Configured pairs: ${escapeHtml((configuredPairs || []).join(', '))}</div>
-        </article>
-    `;
+    const renderSignalsCompactMarkup = (signals, configuredPairs) => {
+        if (!Array.isArray(signals) || signals.length === 0) {
+            return renderEmptySignalsCompact(configuredPairs);
+        }
+
+        return signals.map(renderCompactSignalRow).join('');
+    };
+
+    const renderSignalCard = (row) => {
+        const action = row.action || row.direction || 'NO_TRADE';
+        const badge = signalActionMeta(action);
+        const reasons = row.reasons && row.reasons.length
+            ? row.reasons.join(', ')
+            : 'Indicators do not agree strongly enough.';
+        const riskText = row.risk?.allowed
+            ? 'No blocking condition.'
+            : ((row.risk?.flags && row.risk.flags.length) ? row.risk.flags.join(', ') : 'Unknown risk state.');
+
+        return `
+            <article class="card signal-card" data-symbol="${escapeHtml(row.symbol || '')}">
+                <div class="signal-card-head">
+                    <div>
+                        <div class="signal-symbol">${escapeHtml(row.symbol || '-')}</div>
+                        <div class="meta">${escapeHtml(row.market_regime || 'UNKNOWN')} | Decision timeframe: ${escapeHtml(row.interval || 'n/a')}</div>
+                    </div>
+                    <span class="badge ${badge.className}">${escapeHtml(badge.label)}</span>
+                </div>
+
+                <div class="signal-top-metrics">
+                    <div class="mini-metric"><span>Price</span><strong>${escapeHtml(formatNumber(row.price, 4))}</strong></div>
+                    <div class="mini-metric"><span>Confidence</span><strong>${escapeHtml(formatNumber(row.confidence, 0))} / 100</strong></div>
+                    <div class="mini-metric"><span>Bull</span><strong>${escapeHtml(String(row.bull_score ?? row.long_score ?? 0))}</strong></div>
+                    <div class="mini-metric"><span>Bear</span><strong>${escapeHtml(String(row.bear_score ?? row.short_score ?? 0))}</strong></div>
+                    <div class="mini-metric"><span>ATR %</span><strong>${escapeHtml(formatNumber(row.metrics?.atr_percent, 2))}</strong></div>
+                    <div class="mini-metric"><span>Volume</span><strong>${escapeHtml(formatNumber(row.metrics?.volume_ratio, 2))}</strong></div>
+                </div>
+
+                <div class="signal-card-sections">
+                    <div class="signal-section">
+                        <strong>Reasons</strong>
+                        <p>${escapeHtml(reasons)}</p>
+                    </div>
+                    <div class="signal-section">
+                        <strong>Risk filter</strong>
+                        <p>${escapeHtml(riskText)}</p>
+                    </div>
+                    <div class="signal-section">
+                        <strong>Timeframes</strong>
+                        <div class="signal-timeframes">${renderTimeframes(row.timeframes)}</div>
+                    </div>
+                </div>
+
+                <div class="prediction-actions compact-actions">
+                    <button type="button" class="prediction-button" data-action="prediction" data-symbol="${escapeHtml(row.symbol || '')}">Prediction</button>
+                </div>
+
+                ${row.error ? `<div class="risk pair-error"><strong>Pair error</strong><br>${escapeHtml(row.error)}</div>` : ''}
+            </article>
+        `;
+    };
 
     const renderSignalsMarkup = (signals, configuredPairs) => {
         if (!Array.isArray(signals) || signals.length === 0) {
-            return renderEmptySignals(configuredPairs);
+            return `
+                <article class="card empty-state-card">
+                    <div class="signal-symbol">No data</div>
+                    <div class="meta">Configured pairs: ${escapeHtml((configuredPairs || []).join(', ') || 'No configured pairs')}</div>
+                </article>
+            `;
         }
 
         return signals.map(renderSignalCard).join('');
     };
 
     const renderScenarioCard = (title, tone, payload) => {
-        const zone = payload.target_zone
-            ? `<div class="metric"><span>Target zone</span><span>${escapeHtml(formatZone(payload.target_zone))}</span></div>`
-            : '';
-        const tp = payload.suggested_take_profit != null
-            ? `<div class="metric"><span>Suggested TP</span><span>${escapeHtml(formatNumber(payload.suggested_take_profit, 4))}</span></div>`
-            : '';
-        const invalidation = payload.invalidation != null
-            ? `<div class="metric"><span>Invalidation</span><span>${escapeHtml(formatNumber(payload.invalidation, 4))}</span></div>`
-            : '';
-        const reward = payload.reward_percent != null
-            ? `<div class="metric"><span>Reward %</span><span>${escapeHtml(formatNumber(payload.reward_percent, 2))}</span></div>`
-            : '';
-        const risk = payload.risk_percent != null
-            ? `<div class="metric"><span>Risk %</span><span>${escapeHtml(formatNumber(payload.risk_percent, 2))}</span></div>`
-            : '';
-        const range = payload.range_low != null && payload.range_high != null
-            ? `<div class="metric"><span>Expected band</span><span>${escapeHtml(formatNumber(payload.range_low, 4))} - ${escapeHtml(formatNumber(payload.range_high, 4))}</span></div>`
-            : '';
+        const metrics = [
+            ['Target zone', payload.target_zone ? formatZone(payload.target_zone) : null],
+            ['Suggested TP', payload.suggested_take_profit != null ? formatNumber(payload.suggested_take_profit, 4) : null],
+            ['Invalidation', payload.invalidation != null ? formatNumber(payload.invalidation, 4) : null],
+            ['Reward %', payload.reward_percent != null ? formatNumber(payload.reward_percent, 2) : null],
+            ['Risk %', payload.risk_percent != null ? formatNumber(payload.risk_percent, 2) : null],
+            ['Expected band', payload.range_low != null && payload.range_high != null ? `${formatNumber(payload.range_low, 4)} - ${formatNumber(payload.range_high, 4)}` : null],
+        ].filter(([, value]) => value !== null);
 
         return `
             <article class="prediction-block scenario-${tone}">
                 <div class="prediction-label">${escapeHtml(title)}</div>
                 <div class="meta">${escapeHtml(payload.summary || '')}</div>
-                ${zone}
-                ${tp}
-                ${invalidation}
-                ${reward}
-                ${risk}
-                ${range}
+                <div class="metric-list">
+                    ${metrics.map(([label, value]) => `
+                        <div class="metric"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>
+                    `).join('')}
+                </div>
             </article>
         `;
     };
@@ -223,49 +282,38 @@
         <article class="prediction-block">
             <div class="prediction-label">${escapeHtml(label)}</div>
             <div class="prediction-value">${escapeHtml(payload.bias || 'NEUTRAL')}</div>
-            <div class="metric"><span>Price</span><span>${escapeHtml(formatNumber(payload.price, 4))}</span></div>
-            <div class="metric"><span>EMA20</span><span>${escapeHtml(formatNumber(payload.ema20, 4))}</span></div>
-            <div class="metric"><span>EMA50</span><span>${escapeHtml(formatNumber(payload.ema50, 4))}</span></div>
-            <div class="metric"><span>RSI14</span><span>${escapeHtml(formatNumber(payload.rsi14, 2))}</span></div>
-            <div class="metric"><span>ATR %</span><span>${escapeHtml(formatNumber(payload.atr_percent, 2))}</span></div>
-            <div class="metric"><span>Support</span><span>${escapeHtml(formatNumber(payload.support, 4))}</span></div>
-            <div class="metric"><span>Resistance</span><span>${escapeHtml(formatNumber(payload.resistance, 4))}</span></div>
+            <div class="metric-list">
+                <div class="metric"><span>Price</span><span>${escapeHtml(formatNumber(payload.price, 4))}</span></div>
+                <div class="metric"><span>EMA20</span><span>${escapeHtml(formatNumber(payload.ema20, 4))}</span></div>
+                <div class="metric"><span>EMA50</span><span>${escapeHtml(formatNumber(payload.ema50, 4))}</span></div>
+                <div class="metric"><span>RSI14</span><span>${escapeHtml(formatNumber(payload.rsi14, 2))}</span></div>
+                <div class="metric"><span>ATR %</span><span>${escapeHtml(formatNumber(payload.atr_percent, 2))}</span></div>
+                <div class="metric"><span>Support</span><span>${escapeHtml(formatNumber(payload.support, 4))}</span></div>
+                <div class="metric"><span>Resistance</span><span>${escapeHtml(formatNumber(payload.resistance, 4))}</span></div>
+            </div>
         </article>
     `).join('');
 
-    const renderPaperPreviewMarkup = ({ notional, quantity, riskPercent, rewardPercent }) => [
-        { label: 'Notional size', value: formatNumber(notional, 2) },
+    const renderPaperPreviewMarkup = ({ notional, quantity, riskPercent, rewardPercent }) => renderSummaryStripMarkup([
+        { label: 'Notional', value: formatNumber(notional, 2) },
         { label: 'Quantity', value: formatNumber(quantity, 6) },
-        { label: 'Risk to stop', value: `${formatNumber(riskPercent, 2)} %` },
-        { label: 'Reward to target', value: `${formatNumber(rewardPercent, 2)} %` },
-    ].map((item) => `
-        <div class="preview-chip">
-            <span>${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value)}</strong>
-        </div>
-    `).join('');
+        { label: 'Risk %', value: formatNumber(riskPercent, 2) },
+        { label: 'Reward %', value: formatNumber(rewardPercent, 2) },
+    ]);
 
     const renderPaperAccountMarkup = (account) => {
         if (!account) {
-            return '';
+            return '<div class="paper-empty">Paper account data is not available yet.</div>';
         }
 
-        return [
-            ['Balance', account.balance],
-            ['Equity', account.equity],
-            ['Available', account.available_balance],
-            ['Margin in use', account.margin_in_use],
-            ['Realized PnL', account.realized_pnl, true],
-            ['Floating PnL', account.floating_pnl, true],
-        ].map(([label, value, signed]) => {
-            const formatted = signed ? formatSigned(value, 2) : formatNumber(value, 2);
-            return `
-                <article class="paper-card">
-                    <div class="prediction-label">${escapeHtml(label)}</div>
-                    <div class="prediction-value ${numberClass(value)}">${escapeHtml(formatted)}</div>
-                </article>
-            `;
-        }).join('');
+        return renderSummaryStripMarkup([
+            { label: 'Balance', value: formatNumber(account.balance, 2) },
+            { label: 'Equity', value: formatNumber(account.equity, 2) },
+            { label: 'Available', value: formatNumber(account.available_balance, 2) },
+            { label: 'Margin', value: formatNumber(account.margin_in_use, 2) },
+            { label: 'Realized PnL', value: formatSigned(account.realized_pnl, 2), className: Number(account.realized_pnl) >= 0 ? 'positive' : 'negative' },
+            { label: 'Floating PnL', value: formatSigned(account.floating_pnl, 2), className: Number(account.floating_pnl) >= 0 ? 'positive' : 'negative' },
+        ]);
     };
 
     const renderOpenPositionsMarkup = (positions) => {
@@ -275,6 +323,8 @@
 
         return positions.map((position) => {
             const source = positionSourceMeta(position.source);
+            const pnlTone = Number(position.pnl_value) >= 0 ? 'long' : 'short';
+            const liquidation = Number(position.liquidation_price_estimate);
 
             return `
                 <article class="paper-card ${position.source === 'AUTO_PREDICTION' ? 'paper-card-auto' : ''}" data-paper-position-id="${escapeHtml(position.id)}">
@@ -287,8 +337,9 @@
                                 <span class="paper-card-subtitle">${escapeHtml(position.source === 'AUTO_PREDICTION' ? 'Prediction-managed position' : 'Opened manually')}</span>
                             </div>
                         </div>
-                        <span class="badge ${Number(position.pnl_value) >= 0 ? 'long' : 'short'}">${escapeHtml(formatSigned(position.pnl_value, 2))}</span>
+                        <span class="badge ${pnlTone}">${escapeHtml(formatSigned(position.pnl_value, 2))}</span>
                     </div>
+
                     <div class="paper-card-grid">
                         <div class="metric"><span>Entry</span><span>${escapeHtml(formatNumber(position.entry_price, 4))}</span></div>
                         <div class="metric"><span>Current</span><span>${escapeHtml(formatNumber(position.current_price, 4))}</span></div>
@@ -298,9 +349,10 @@
                         <div class="metric"><span>Notional</span><span>${escapeHtml(formatNumber(position.notional, 2))}</span></div>
                         <div class="metric"><span>TP</span><span>${escapeHtml(formatNumber(position.take_profit, 4))}</span></div>
                         <div class="metric"><span>SL</span><span>${escapeHtml(formatNumber(position.stop_loss, 4))}</span></div>
-                        <div class="metric"><span>Liq. est.</span><span>${escapeHtml(formatNumber(position.liquidation_price_estimate, 4))}</span></div>
+                        <div class="metric"><span>Liq. est.</span><span>${escapeHtml(Number.isFinite(liquidation) ? formatNumber(liquidation, 4) : '-')}</span></div>
                         <div class="metric"><span>Opened</span><span>${escapeHtml(formatDate(position.opened_at))}</span></div>
                     </div>
+
                     <div class="inline-edit-grid">
                         <label class="field inline-edit">
                             <span>Stop loss</span>
@@ -320,10 +372,12 @@
                             </select>
                         </label>
                     </div>
+
                     <label class="field inline-edit-notes">
                         <span>Notes</span>
                         <input type="text" data-role="notes" maxlength="140" value="${escapeHtml(position.notes || '')}">
                     </label>
+
                     <div class="inline-actions">
                         <button type="button" class="paper-inline-button alt" data-action="save-paper-position" data-id="${escapeHtml(position.id)}">Save levels</button>
                         <button type="button" class="paper-inline-button danger" data-action="close-paper-position" data-id="${escapeHtml(position.id)}">Close now</button>
@@ -340,6 +394,7 @@
 
         return history.map((position) => {
             const source = positionSourceMeta(position.source);
+            const realizedTone = Number(position.realized_pnl) >= 0 ? 'long' : 'short';
 
             return `
                 <article class="paper-history-card">
@@ -352,7 +407,7 @@
                                 <span class="paper-card-subtitle">${escapeHtml(position.exit_reason || 'N/A')}</span>
                             </div>
                         </div>
-                        <span class="badge ${Number(position.realized_pnl) >= 0 ? 'long' : 'short'}">${escapeHtml(formatSigned(position.realized_pnl, 2))}</span>
+                        <span class="badge ${realizedTone}">${escapeHtml(formatSigned(position.realized_pnl, 2))}</span>
                     </div>
                     <div class="paper-card-grid">
                         <div class="metric"><span>Entry</span><span>${escapeHtml(formatNumber(position.entry_price, 4))}</span></div>
@@ -372,21 +427,14 @@
             return '';
         }
 
-        return [
-            ['Enabled pairs', summary.enabled_pairs, false],
-            ['Manual allocation', summary.manual_total_percent, true, '%'],
-            ['Auto pairs', summary.auto_pairs, false],
-            ['Remaining to assign', summary.remaining_percent, true, '%'],
-            ['Allocated total', summary.allocated_percent, true, '%'],
-            ['Capital pool', totalCapital, true, ' USDT'],
-        ].map(([label, value, formattedNumber, suffix]) => `
-            <article class="paper-card">
-                <div class="prediction-label">${escapeHtml(label)}</div>
-                <div class="prediction-value">${escapeHtml(
-                    formattedNumber ? `${formatNumber(value, 2)}${suffix || ''}` : String(value)
-                )}</div>
-            </article>
-        `).join('');
+        return renderSummaryStripMarkup([
+            { label: 'Enabled pairs', value: String(summary.enabled_pairs ?? 0) },
+            { label: 'Manual %', value: `${formatNumber(summary.manual_total_percent, 2)}%` },
+            { label: 'Auto pairs', value: String(summary.auto_pairs ?? 0) },
+            { label: 'Remaining %', value: `${formatNumber(summary.remaining_percent, 2)}%` },
+            { label: 'Allocated %', value: `${formatNumber(summary.allocated_percent, 2)}%` },
+            { label: 'Capital pool', value: `${formatNumber(totalCapital, 2)} USDT` },
+        ]);
     };
 
     const renderAutomationPairsMarkup = (pairs, totalCapital) => {
@@ -438,6 +486,7 @@
             const minReward = position.automation?.min_reward_percent != null
                 ? `${formatNumber(position.automation.min_reward_percent, 2)}%`
                 : '-';
+            const predictionBias = position.automation?.prediction_bias || '-';
 
             return `
                 <button type="button" class="automation-open-card" data-action="focus-auto-position" data-id="${escapeHtml(position.id)}">
@@ -453,10 +502,12 @@
                         <div class="metric"><span>Current</span><span>${escapeHtml(formatNumber(position.current_price, 4))}</span></div>
                         <div class="metric"><span>TP</span><span>${escapeHtml(formatNumber(position.take_profit, 4))}</span></div>
                         <div class="metric"><span>SL</span><span>${escapeHtml(formatNumber(position.stop_loss, 4))}</span></div>
-                        <div class="metric"><span>Reward trigger</span><span>${escapeHtml(triggerReward)}</span></div>
-                        <div class="metric"><span>Min required</span><span>${escapeHtml(minReward)}</span></div>
+                        <div class="metric"><span>Bias</span><span>${escapeHtml(predictionBias)}</span></div>
+                        <div class="metric"><span>Trigger</span><span>${escapeHtml(triggerReward)}</span></div>
+                        <div class="metric"><span>Min reward</span><span>${escapeHtml(minReward)}</span></div>
+                        <div class="metric"><span>Opened</span><span>${escapeHtml(formatDate(position.opened_at))}</span></div>
                     </div>
-                    <div class="automation-open-card-foot">Click to open the full paper position editor.</div>
+                    <div class="automation-open-card-foot">Click to focus the full manual position card below.</div>
                 </button>
             `;
         }).join('');
@@ -475,67 +526,34 @@
         const freshness = runtime.seconds_since_last_activity != null
             ? `${runtime.seconds_since_last_activity} sec ago`
             : '-';
-        const cadence = `${formatNumber(runtime.expected_interval_seconds, 0)} sec cadence`;
-        const staleWindow = `${formatNumber(runtime.stale_after_seconds, 0)} sec stale window`;
-        const lockText = runtime.lock_active ? 'Active run holds the lock.' : 'No active lock detected.';
 
         return [
-            `
-                <article class="paper-card automation-runtime-card">
-                    <div class="automation-runtime-status">
-                        <div>
-                            <div class="prediction-label">Scheduler health</div>
-                            <div class="prediction-value">${escapeHtml(runtime.state || 'UNKNOWN')}</div>
-                        </div>
-                        <span class="badge ${health.className}">${escapeHtml(health.label)}</span>
-                    </div>
-                    <div class="automation-runtime-copy">${escapeHtml(runtime.summary || 'No runtime summary is available yet.')}</div>
-                </article>
-            `,
-            `
-                <article class="paper-card automation-runtime-card">
-                    <div class="prediction-label">Last heartbeat</div>
-                    <div class="prediction-value">${escapeHtml(lastHeartbeat)}</div>
-                    <div class="automation-runtime-meta">
-                        <div class="metric"><span>Freshness</span><span>${escapeHtml(freshness)}</span></div>
-                        <div class="metric"><span>Last duration</span><span>${escapeHtml(formatDuration(runtime.last_duration_ms))}</span></div>
-                    </div>
-                </article>
-            `,
-            `
-                <article class="paper-card automation-runtime-card">
-                    <div class="prediction-label">Cadence guardrails</div>
-                    <div class="prediction-value">${escapeHtml(cadence)}</div>
-                    <div class="automation-runtime-meta">
-                        <div class="metric"><span>Stale window</span><span>${escapeHtml(staleWindow)}</span></div>
-                        <div class="metric"><span>Lock status</span><span>${escapeHtml(lockText)}</span></div>
-                    </div>
-                </article>
-            `,
-            `
-                <article class="paper-card automation-runtime-card">
-                    <div class="prediction-label">Latest counters</div>
-                    <div class="automation-runtime-meta">
-                        <div class="metric"><span>Opened</span><span>${escapeHtml(String(stats.opened_positions ?? 0))}</span></div>
-                        <div class="metric"><span>Closed</span><span>${escapeHtml(String(stats.closed_positions ?? 0))}</span></div>
-                        <div class="metric"><span>Auto open</span><span>${escapeHtml(String(stats.auto_open_positions ?? 0))}</span></div>
-                        <div class="metric"><span>Evaluated</span><span>${escapeHtml(String(stats.evaluated_pairs ?? 0))}</span></div>
-                    </div>
-                </article>
-            `,
-            `
-                <article class="paper-card automation-runtime-card is-wide">
-                    <div class="prediction-label">Last scheduler message</div>
-                    <div class="automation-runtime-copy">${escapeHtml(runtime.message || 'No scheduler message is available yet.')}</div>
-                    ${runtime.last_error ? `<div class="risk pair-error"><strong>Last error</strong><br>${escapeHtml(runtime.last_error)}</div>` : ''}
-                </article>
-            `,
-        ].join('');
+            { label: 'State', value: runtime.state || 'UNKNOWN', className: health.className },
+            { label: 'Freshness', value: freshness },
+            { label: 'Last heartbeat', value: lastHeartbeat },
+            { label: 'Duration', value: formatDuration(runtime.last_duration_ms) },
+            { label: 'Opened', value: String(stats.opened_positions ?? 0) },
+            { label: 'Closed', value: String(stats.closed_positions ?? 0) },
+            { label: 'Auto open', value: String(stats.auto_open_positions ?? 0) },
+            { label: 'Evaluated', value: String(stats.evaluated_pairs ?? 0) },
+        ].map((item) => `
+            <article class="runtime-stat ${escapeHtml(item.className || '')}">
+                <span>${escapeHtml(item.label)}</span>
+                <strong>${escapeHtml(item.value)}</strong>
+            </article>
+        `).join('') + `
+            <article class="runtime-message-card">
+                <div class="prediction-label">Scheduler message</div>
+                <p>${escapeHtml(runtime.summary || runtime.message || 'No scheduler message is available yet.')}</p>
+                ${runtime.last_error ? `<div class="risk pair-error"><strong>Last error</strong><br>${escapeHtml(runtime.last_error)}</div>` : ''}
+            </article>
+        `;
     };
 
     window.DashboardView = {
         formatDate,
         formatNumber,
+        formatSigned,
         formatZone,
         renderAutomationPairsMarkup,
         renderAutomationPositionsMarkup,
@@ -547,7 +565,9 @@
         renderPaperPreviewMarkup,
         renderPredictionScenariosMarkup,
         renderPredictionTimeframesMarkup,
+        renderSignalsCompactMarkup,
         renderSignalsMarkup,
+        renderSummaryStripMarkup,
         setHtmlIfChanged,
     };
 })();
