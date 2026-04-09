@@ -1,0 +1,120 @@
+.signal-header {
+    align-items: center;
+}
+
+.signal-compact-list,
+.signal-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.signal-compact-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: stretch;
+}
+
+.signal-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.compact-signal-row {
+    display: grid;
+    height: 100%;
+    gap: 10px;
+    padding: 12px;
+    align-content: start;
+}
+
+.compact-signal-main > div {
+    display: grid;
+    gap: 4px;
+}
+
+.compact-signal-metrics {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compact-signal-actions {
+    margin-top: auto;
+    justify-content: flex-start;
+}
+
+.compact-button {
+    width: 100%;
+    min-width: 0;
+}
+
+.empty-state-row {
+    min-height: 100%;
+    align-content: center;
+}
+
+.signal-card {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+}
+
+.signal-top-metrics {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.signal-section {
+    padding: 10px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.signal-section strong,
+.signal-card-head .signal-symbol {
+    display: block;
+    margin-bottom: 6px;
+}
+
+@media (max-width: 1600px) {
+    .signal-compact-list {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1200px) {
+    .signal-compact-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 960px) {
+    .signal-top-metrics,
+    .compact-signal-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .signal-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 860px) {
+    .signal-compact-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .signal-top-metrics,
+    .compact-signal-metrics,
+    .signal-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .signal-compact-list {
+        grid-template-columns: 1fr;
+    }
+}

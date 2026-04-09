@@ -464,5 +464,10 @@ $configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])),
         </section>
     </section>
 </div>
-<script src="/assets/js/dashboard.view.js" defer></script>
+<script src="/assets/js/dashboard/core.js" defer></script>
+<script src="/assets/js/dashboard/signals.js" defer></script>
+<script src="/assets/js/dashboard/prediction.js" defer></script>
+<script src="/assets/js/dashboard/paper.js" defer></script>
+<script src="/assets/js/dashboard/automation.js" defer></script>
 <script src="/assets/js/dashboard.js" defer></script>
+

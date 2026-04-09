@@ -1,0 +1,132 @@
+.paper-header {
+    align-items: center;
+}
+
+.manual-panel,
+.paper-form,
+.paper-open-list,
+.paper-history-list {
+    display: grid;
+    gap: 12px;
+}
+
+.manual-top-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+    gap: 14px;
+}
+
+.paper-form-grid,
+.paper-card-grid,
+.inline-edit-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.paper-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.paper-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.inline-edit-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.field input,
+.field select,
+.inline-edit input,
+.inline-edit select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(5, 10, 20, 0.34);
+    color: var(--text);
+}
+
+.field-wide,
+.field-toggle {
+    grid-column: span 2;
+}
+
+.paper-form.is-disabled {
+    opacity: 0.72;
+}
+
+.paper-form.is-spot .futures-only {
+    display: none;
+}
+
+.paper-account-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.paper-card-auto {
+    border-color: rgba(255, 211, 106, 0.22);
+}
+
+.paper-source-row {
+    margin-top: 8px;
+}
+
+.inline-edit-notes {
+    margin-top: 10px;
+}
+
+.paper-card.is-focused {
+    border-color: rgba(255, 211, 106, 0.42);
+    box-shadow: 0 0 0 1px rgba(255, 211, 106, 0.18), 0 18px 44px rgba(0, 0, 0, 0.24);
+}
+
+.manual-section {
+    gap: 12px;
+}
+
+.paper-card,
+.paper-history-card {
+    align-content: start;
+}
+
+@media (max-width: 1180px) {
+    .manual-top-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .paper-form-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1120px) {
+    .paper-form-grid,
+    .paper-card-grid,
+    .inline-edit-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .paper-form-grid,
+    .paper-card-grid,
+    .inline-edit-grid,
+    .paper-account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .field-wide,
+    .field-toggle {
+        grid-column: span 1;
+    }
+}
+
+
