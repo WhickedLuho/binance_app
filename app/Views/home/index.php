@@ -5,8 +5,15 @@ $enabledTimeframes = array_values(array_unique(array_map(
 )));
 $enabledTimeframesLabel = $enabledTimeframes !== [] ? implode(', ', $enabledTimeframes) : 'none';
 $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
+$initialAnalysisJson = htmlspecialchars(json_encode(array_values($analysis ?? [])), ENT_QUOTES, 'UTF-8');
+$configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])), ENT_QUOTES, 'UTF-8');
 ?>
-<div id="dashboard-root" data-refresh-seconds="<?= (int) $refreshSeconds ?>" data-configured-pairs="<?= htmlspecialchars(json_encode(array_values($pairs ?? [])), ENT_QUOTES, 'UTF-8') ?>">
+<div
+    id="dashboard-root"
+    data-refresh-seconds="<?= (int) $refreshSeconds ?>"
+    data-configured-pairs="<?= $configuredPairsJson ?>"
+    data-initial-analysis="<?= $initialAnalysisJson ?>"
+>
     <section class="hero">
         <h1><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></h1>
         <p>
@@ -33,148 +40,338 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
         <div class="error" id="dashboard-error" hidden></div>
     <?php endif; ?>
 
-    <section class="grid" id="signal-grid">
-        <?php foreach ($analysis as $row): ?>
-            <?php
-            $action = $row['action'] ?? ($row['direction'] ?? 'NO_TRADE');
-            $badgeClass = match ($action) {
-                'LONG', 'SPOT_BUY' => 'long',
-                'SHORT', 'SPOT_SELL' => 'short',
-                default => 'neutral',
-            };
-            $hasError = isset($row['error']) && $row['error'] !== '';
-            ?>
-            <article class="card" data-symbol="<?= htmlspecialchars((string) $row['symbol'], ENT_QUOTES, 'UTF-8') ?>">
-                <div class="signal-card-head">
+    <section class="card automation-panel" id="automation-panel">
+        <div class="panel-head automation-header">
+            <div>
+                <div class="prediction-kicker">Automation console</div>
+                <h2>Auto paper trading</h2>
+                <p class="meta">A compact control room for runtime health, entry settings and live auto-managed positions.</p>
+            </div>
+            <div class="prediction-actions">
+                <button type="button" class="prediction-button alt-button" id="automation-toggle" aria-expanded="true" aria-controls="automation-content">
+                    <span data-role="toggle-label">Collapse</span>
+                </button>
+                <button type="button" class="prediction-button" id="automation-refresh">Reload</button>
+            </div>
+        </div>
+
+        <div class="automation-content" id="automation-content">
+            <div class="prediction-status" id="automation-status" aria-live="polite">Loading auto trade settings...</div>
+
+            <section class="console-block">
+                <div class="section-mini-head">
                     <div>
-                        <div class="signal-symbol"><?= htmlspecialchars($row['symbol'], ENT_QUOTES, 'UTF-8') ?></div>
-                        <div class="meta">Decision timeframe: <?= htmlspecialchars($row['interval'], ENT_QUOTES, 'UTF-8') ?></div>
+                        <h3>Scheduler runtime</h3>
+                        <p class="meta">Live health snapshot from the latest heartbeat.</p>
                     </div>
-                    <span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
-
-                <div class="meta signal-meta-block">
-                    Price: <?= number_format((float) $row['price'], 4, '.', ' ') ?><br>
-                    Market regime: <?= htmlspecialchars((string) ($row['market_regime'] ?? 'UNKNOWN'), ENT_QUOTES, 'UTF-8') ?><br>
-                    Confidence: <?= (int) $row['confidence'] ?> / 100
+                <div class="automation-runtime" id="automation-runtime">
+                    <div class="paper-empty">Waiting for the first scheduler heartbeat...</div>
                 </div>
+            </section>
 
-                <div class="reasons">
-                    <strong>Scores</strong>
-                    <div class="metric"><span>Bull</span><span><?= (int) ($row['bull_score'] ?? 0) ?></span></div>
-                    <div class="metric"><span>Bear</span><span><?= (int) ($row['bear_score'] ?? 0) ?></span></div>
-                    <div class="metric"><span>Risk penalty</span><span><?= (int) ($row['risk_penalty'] ?? 0) ?></span></div>
-                    <div class="metric"><span>RSI 14</span><span><?= number_format((float) ($row['metrics']['rsi14'] ?? 0), 2) ?></span></div>
-                    <div class="metric"><span>ATR %</span><span><?= number_format((float) ($row['metrics']['atr_percent'] ?? 0), 2) ?></span></div>
-                    <div class="metric"><span>Volume ratio</span><span><?= number_format((float) ($row['metrics']['volume_ratio'] ?? 0), 2) ?></span></div>
-                </div>
-
-                <div class="reasons">
-                    <strong>Timeframes</strong><br>
-                    <?php if (!empty($row['timeframes'])): ?>
-                        <?php foreach ($row['timeframes'] as $timeframe => $tf): ?>
-                            <div class="metric"><span><?= htmlspecialchars((string) $timeframe, ENT_QUOTES, 'UTF-8') ?></span><span><?= htmlspecialchars((string) ($tf['bias'] ?? 'NEUTRAL'), ENT_QUOTES, 'UTF-8') ?></span></div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        No timeframe data.
-                    <?php endif; ?>
-                </div>
-
-                <div class="reasons">
-                    <strong>Reasons</strong><br>
-                    <?= htmlspecialchars(implode(', ', $row['reasons']) ?: 'Indicators do not agree strongly enough.', ENT_QUOTES, 'UTF-8') ?>
-                </div>
-
-                <div class="risk">
-                    <strong>Risk filter</strong><br>
-                    <?= $row['risk']['allowed'] ? 'No blocking condition.' : htmlspecialchars(implode(', ', $row['risk']['flags']), ENT_QUOTES, 'UTF-8') ?>
-                </div>
-
-                <div class="prediction-actions">
-                    <button type="button" class="prediction-button" data-action="prediction" data-symbol="<?= htmlspecialchars((string) $row['symbol'], ENT_QUOTES, 'UTF-8') ?>">
-                        Prediction
+            <form class="automation-form" id="automation-form">
+                <section class="console-section" id="automation-settings-section">
+                    <button type="button" class="section-toggle" id="automation-settings-toggle" aria-expanded="true" aria-controls="automation-settings-body">
+                        <span class="section-toggle-copy">
+                            <strong>Settings</strong>
+                            <span>Capital plan, entry types, safety rules and pair allocation.</span>
+                        </span>
+                        <span class="section-toggle-action" data-role="toggle-label">Collapse</span>
                     </button>
-                </div>
+                    <div class="section-summary-grid" id="automation-summary"></div>
+                    <div class="console-section-body" id="automation-settings-body">
+                        <div class="automation-settings-shell">
+                            <section class="automation-settings-section">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Capital plan</h3>
+                                        <p class="meta">Keep concurrency, capital and the main switch together.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid">
+                                    <div class="field field-toggle">
+                                        <span>Automation</span>
+                                        <label class="switch">
+                                            <input type="checkbox" id="automation-enabled">
+                                            <span class="switch-slider"></span>
+                                            <span class="switch-label">Enable prediction-based auto paper trading</span>
+                                        </label>
+                                    </div>
+                                    <label class="field">
+                                        <span>Max capital (USDT)</span>
+                                        <input type="number" id="automation-total-capital" min="10" step="0.01" value="100">
+                                    </label>
+                                    <label class="field">
+                                        <span>Max open positions</span>
+                                        <input type="number" id="automation-max-open-positions" min="1" step="1" value="2">
+                                    </label>
+                                </div>
+                            </section>
 
-                <?php if ($hasError): ?>
-                    <div class="risk pair-error">
-                        <strong>Pair error</strong><br>
-                        <?= htmlspecialchars($row['error'], ENT_QUOTES, 'UTF-8') ?>
+                            <section class="automation-settings-section">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Entry types</h3>
+                                        <p class="meta">Choose the execution modes the engine should evaluate.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-entry-list">
+                                    <label class="automation-entry-switch" for="automation-entry-futures-long">
+                                        <span class="automation-entry-copy">
+                                            <strong>Futures long</strong>
+                                            <span>Bullish leveraged entry</span>
+                                        </span>
+                                        <span class="automation-entry-toggle">
+                                            <input type="checkbox" id="automation-entry-futures-long">
+                                            <span class="switch-slider"></span>
+                                        </span>
+                                    </label>
+                                    <label class="automation-entry-switch" for="automation-entry-futures-short">
+                                        <span class="automation-entry-copy">
+                                            <strong>Futures short</strong>
+                                            <span>Bearish leveraged entry</span>
+                                        </span>
+                                        <span class="automation-entry-toggle">
+                                            <input type="checkbox" id="automation-entry-futures-short">
+                                            <span class="switch-slider"></span>
+                                        </span>
+                                    </label>
+                                    <label class="automation-entry-switch" for="automation-entry-spot">
+                                        <span class="automation-entry-copy">
+                                            <strong>Spot long</strong>
+                                            <span>Unleveraged safer baseline</span>
+                                        </span>
+                                        <span class="automation-entry-toggle">
+                                            <input type="checkbox" id="automation-entry-spot">
+                                            <span class="switch-slider"></span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section" id="automation-futures-settings">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Futures defaults</h3>
+                                        <p class="meta">Only applied when a futures entry type is enabled.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid automation-grid-two">
+                                    <label class="field">
+                                        <span>Default margin type</span>
+                                        <select id="automation-margin-type">
+                                            <option value="ISOLATED">Isolated</option>
+                                            <option value="CROSS">Cross</option>
+                                        </select>
+                                    </label>
+                                    <label class="field">
+                                        <span>Default leverage</span>
+                                        <input type="number" id="automation-leverage" min="1" max="20" step="1" value="4">
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section" id="automation-futures-long-settings">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Futures long trigger</h3>
+                                        <p class="meta">Minimum expected reward for bullish futures entries.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid automation-grid-single">
+                                    <label class="field">
+                                        <span>Min reward % (long)</span>
+                                        <input type="number" id="automation-min-profit-long" min="0" step="0.1" value="1.2">
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section" id="automation-futures-short-settings">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Futures short trigger</h3>
+                                        <p class="meta">Minimum expected reward for bearish futures entries.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid automation-grid-single">
+                                    <label class="field">
+                                        <span>Min reward % (short)</span>
+                                        <input type="number" id="automation-min-profit-short" min="0" step="0.1" value="1.2">
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section" id="automation-spot-settings">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Spot trigger</h3>
+                                        <p class="meta">Minimum expected reward for spot entries.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid automation-grid-single">
+                                    <label class="field">
+                                        <span>Min reward % (spot)</span>
+                                        <input type="number" id="automation-min-profit-spot" min="0" step="0.1" value="0.8">
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Safety guardrails</h3>
+                                        <p class="meta">Keep noisy and overextended setups out.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid automation-grid-secondary">
+                                    <label class="field">
+                                        <span>Max prediction ATR %</span>
+                                        <input type="number" id="automation-max-prediction-atr" min="0.1" step="0.1" value="3.0">
+                                    </label>
+                                    <label class="field">
+                                        <span>Max last candle move %</span>
+                                        <input type="number" id="automation-max-candle-change" min="0.1" step="0.1" value="1.0">
+                                    </label>
+                                    <label class="field">
+                                        <span>Cooldown (minutes)</span>
+                                        <input type="number" id="automation-cooldown-minutes" min="0" step="1" value="20">
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="automation-settings-section">
+                                <div class="automation-settings-head">
+                                    <div>
+                                        <h3>Auto exits</h3>
+                                        <p class="meta">Automatic take profit and stop loss handling.</p>
+                                    </div>
+                                </div>
+                                <div class="automation-grid">
+                                    <div class="field field-toggle">
+                                        <span>Exit rules</span>
+                                        <div class="automation-switch-row">
+                                            <label class="switch switch-compact">
+                                                <input type="checkbox" id="automation-close-on-take-profit" checked>
+                                                <span class="switch-slider"></span>
+                                                <span class="switch-label">Close on take profit</span>
+                                            </label>
+                                            <label class="switch switch-compact">
+                                                <input type="checkbox" id="automation-close-on-stop-loss" checked>
+                                                <span class="switch-slider"></span>
+                                                <span class="switch-label">Close on stop loss</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <section class="console-block pair-allocation-shell">
+                            <div class="section-mini-head">
+                                <div>
+                                    <h3>Pair allocation plan</h3>
+                                    <p class="meta">Manual percentages override the equal split for the remaining enabled pairs.</p>
+                                </div>
+                            </div>
+                            <div class="automation-pairs" id="automation-pairs"></div>
+                        </section>
+
+                        <div class="prediction-actions compact-actions">
+                            <button type="submit" class="prediction-button" id="automation-save">Save automation settings</button>
+                        </div>
                     </div>
-                <?php endif; ?>
-            </article>
-        <?php endforeach; ?>
+                </section>
 
-        <?php if ($analysis === [] && $error === null): ?>
-            <article class="card">
-                <div class="signal-symbol">No data</div>
-                <div class="meta">Configured pairs: <?= htmlspecialchars(implode(', ', $pairs), ENT_QUOTES, 'UTF-8') ?></div>
-            </article>
-        <?php endif; ?>
+                <section class="console-section" id="automation-auto-section">
+                    <button type="button" class="section-toggle" id="automation-auto-toggle" aria-expanded="true" aria-controls="automation-auto-body">
+                        <span class="section-toggle-copy">
+                            <strong>Auto positions</strong>
+                            <span id="automation-auto-summary-copy">Live auto-managed positions with quick health context.</span>
+                        </span>
+                        <span class="section-toggle-action" data-role="toggle-label">Collapse</span>
+                    </button>
+                    <div class="section-summary-grid" id="automation-auto-summary"></div>
+                    <div class="console-section-body" id="automation-auto-body">
+                        <div class="automation-open-positions" id="automation-open-positions"></div>
+                    </div>
+                </section>
+            </form>
+        </div>
     </section>
 
-    <section class="card prediction-panel" id="prediction-panel" hidden>
-        <div class="prediction-header">
+    <section class="card signal-panel" id="signal-panel">
+        <div class="panel-head signal-header">
+            <div>
+                <div class="prediction-kicker">Market signals</div>
+                <h2>Compact shortlist</h2>
+                <p class="meta" id="signal-summary">Live pairs, bias and quick risk context. Expand only when you need the full reasoning.</p>
+            </div>
+            <div class="prediction-actions">
+                <button type="button" class="prediction-button alt-button" id="signal-toggle" aria-expanded="false" aria-controls="signal-details">
+                    <span data-role="toggle-label">Show details</span>
+                </button>
+            </div>
+        </div>
+        <div class="signal-compact-list" id="signal-compact-list"></div>
+        <div class="signal-detail-shell" id="signal-details" hidden>
+            <div class="signal-grid" id="signal-grid"></div>
+        </div>
+    </section>
+
+    <section class="card prediction-panel" id="prediction-panel">
+        <div class="panel-head">
             <div>
                 <div class="prediction-kicker">Detailed prediction</div>
-                <h2 id="prediction-title">Select a pair</h2>
-                <p class="meta" id="prediction-summary">Choose a pair card and the system will build a more detailed scenario from current market data.</p>
+                <h2 id="prediction-title">Prediction</h2>
+                <p class="meta" id="prediction-summary">Select a pair from the signals section and the system will build a deeper market scenario.</p>
             </div>
             <div class="prediction-actions">
                 <button type="button" class="prediction-button" id="prediction-refresh" disabled>Refresh prediction</button>
             </div>
         </div>
 
-        <div class="prediction-tabs" id="prediction-tabs" role="tablist" aria-label="Prediction views" hidden>
-            <button type="button" class="prediction-tab is-active" id="prediction-tab-prediction" data-tab="prediction" role="tab" aria-controls="prediction-content" aria-selected="true">
-                Prediction
-            </button>
-            <button type="button" class="prediction-tab" id="prediction-tab-paper" data-tab="paper" role="tab" aria-controls="paper-panel" aria-selected="false">
-                Open position
-            </button>
+        <div class="prediction-status" id="prediction-status" aria-live="polite">Prediction is currently idle.</div>
+
+        <div class="prediction-grid" id="prediction-grid" hidden>
+            <article class="prediction-block">
+                <div class="prediction-label">Market bias</div>
+                <div class="prediction-value" id="prediction-bias">-</div>
+                <div class="meta" id="prediction-confidence">Confidence: -</div>
+            </article>
+            <article class="prediction-block">
+                <div class="prediction-label">Current price</div>
+                <div class="prediction-value" id="prediction-price">-</div>
+                <div class="meta" id="prediction-generated">Generated: -</div>
+            </article>
+            <article class="prediction-block">
+                <div class="prediction-label">Support zone</div>
+                <div class="prediction-value" id="prediction-support">-</div>
+                <div class="meta">Nearest downside target area</div>
+            </article>
+            <article class="prediction-block">
+                <div class="prediction-label">Resistance zone</div>
+                <div class="prediction-value" id="prediction-resistance">-</div>
+                <div class="meta">Nearest upside invalidation area</div>
+            </article>
         </div>
 
-        <section class="tab-panel" id="prediction-content" data-tab-panel="prediction" role="tabpanel" aria-labelledby="prediction-tab-prediction">
-            <div class="prediction-status" id="prediction-status" aria-live="polite">Prediction is currently idle.</div>
+        <div class="prediction-scenarios" id="prediction-scenarios" hidden></div>
+        <div class="prediction-timeframes" id="prediction-timeframes" hidden></div>
+    </section>
 
-            <div class="prediction-grid" id="prediction-grid" hidden>
-                <article class="prediction-block">
-                    <div class="prediction-label">Market bias</div>
-                    <div class="prediction-value" id="prediction-bias">-</div>
-                    <div class="meta" id="prediction-confidence">Confidence: -</div>
-                </article>
-                <article class="prediction-block">
-                    <div class="prediction-label">Current price</div>
-                    <div class="prediction-value" id="prediction-price">-</div>
-                    <div class="meta" id="prediction-generated">Generated: -</div>
-                </article>
-                <article class="prediction-block">
-                    <div class="prediction-label">Support zone</div>
-                    <div class="prediction-value" id="prediction-support">-</div>
-                    <div class="meta">Nearest downside target area</div>
-                </article>
-                <article class="prediction-block">
-                    <div class="prediction-label">Resistance zone</div>
-                    <div class="prediction-value" id="prediction-resistance">-</div>
-                    <div class="meta">Nearest upside invalidation area</div>
-                </article>
+    <section class="card manual-panel" id="manual-panel">
+        <div class="panel-head paper-header">
+            <div>
+                <div class="prediction-kicker">Manual paper trading</div>
+                <h2 id="manual-title">Manual position</h2>
+                <p class="meta" id="manual-summary">Prediction defaults fill this trade form, while open simulated positions stay manageable below.</p>
             </div>
+        </div>
 
-            <div class="prediction-scenarios" id="prediction-scenarios" hidden></div>
-            <div class="prediction-timeframes" id="prediction-timeframes" hidden></div>
-        </section>
+        <div class="prediction-status" id="paper-status" aria-live="polite">Select a prediction to prepare a simulated trade. Existing open positions remain editable below.</div>
 
-        <section class="paper-panel tab-panel" id="paper-panel" data-tab-panel="paper" role="tabpanel" aria-labelledby="prediction-tab-paper" hidden>
-            <div class="prediction-header paper-header">
-                <div>
-                    <div class="prediction-kicker">Paper trading cockpit</div>
-                    <h3 class="paper-title">Simulated execution</h3>
-                    <p class="meta">Open, manage and close simulated spot or futures positions from the current prediction context.</p>
-                </div>
-            </div>
-
-            <div class="prediction-status" id="paper-status" aria-live="polite">Select a prediction to prepare a simulated trade.</div>
-
+        <div class="manual-top-grid">
             <form class="paper-form" id="paper-form">
                 <div class="paper-form-grid">
                     <label class="field">
@@ -222,31 +419,55 @@ $decisionTimeframeLabel = (string) ($decisionTimeframe ?? 'n/a');
                     </label>
                 </div>
                 <div class="paper-preview" id="paper-preview"></div>
-                <div class="prediction-actions">
-                    <button type="submit" class="prediction-button">Open paper position</button>
+                <div class="prediction-actions compact-actions">
+                    <button type="submit" class="prediction-button" id="paper-submit">Open paper position</button>
                 </div>
             </form>
 
-            <div class="paper-account-grid" id="paper-account"></div>
+            <section class="console-block paper-account-shell">
+                <div class="section-mini-head">
+                    <div>
+                        <h3>Account snapshot</h3>
+                        <p class="meta">Live paper account balance and PnL.</p>
+                    </div>
+                </div>
+                <div class="paper-account-grid" id="paper-account"></div>
+            </section>
+        </div>
 
-            <div class="paper-columns">
-                <section class="paper-column">
-                    <div class="paper-section-head">
-                        <h3>Open positions</h3>
-                    </div>
-                    <div class="paper-open-list" id="paper-open-positions"></div>
-                </section>
-                <section class="paper-column">
-                    <div class="paper-section-head">
-                        <h3>Trade history</h3>
-                    </div>
-                    <div class="paper-history-list" id="paper-history"></div>
-                </section>
+        <section class="console-section manual-section" id="paper-open-section">
+            <button type="button" class="section-toggle" id="paper-open-toggle" aria-expanded="true" aria-controls="paper-open-body">
+                <span class="section-toggle-copy">
+                    <strong>Open positions</strong>
+                    <span id="paper-open-summary-copy">Live paper positions with inline management controls.</span>
+                </span>
+                <span class="section-toggle-action" data-role="toggle-label">Collapse</span>
+            </button>
+            <div class="section-summary-grid" id="paper-open-summary"></div>
+            <div class="console-section-body" id="paper-open-body">
+                <div class="paper-open-list" id="paper-open-positions"></div>
+            </div>
+        </section>
+
+        <section class="console-section manual-section" id="paper-history-section">
+            <button type="button" class="section-toggle" id="paper-history-toggle" aria-expanded="false" aria-controls="paper-history-body">
+                <span class="section-toggle-copy">
+                    <strong>Trade history</strong>
+                    <span id="paper-history-summary-copy">Closed simulated trades and their exit outcomes.</span>
+                </span>
+                <span class="section-toggle-action" data-role="toggle-label">Show</span>
+            </button>
+            <div class="section-summary-grid" id="paper-history-summary"></div>
+            <div class="console-section-body" id="paper-history-body" hidden>
+                <div class="paper-history-list" id="paper-history"></div>
             </div>
         </section>
     </section>
 </div>
-<script src="/assets/js/dashboard.view.js" defer></script>
+<script src="/assets/js/dashboard/core.js" defer></script>
+<script src="/assets/js/dashboard/signals.js" defer></script>
+<script src="/assets/js/dashboard/prediction.js" defer></script>
+<script src="/assets/js/dashboard/paper.js" defer></script>
+<script src="/assets/js/dashboard/automation.js" defer></script>
 <script src="/assets/js/dashboard.js" defer></script>
-
 

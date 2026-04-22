@@ -1,0 +1,455 @@
+.hero {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.hero h1 {
+    margin: 0;
+    font-size: clamp(1.9rem, 4vw, 2.7rem);
+}
+
+.hero p {
+    margin: 0;
+    max-width: 860px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.hero a {
+    color: var(--accent);
+}
+
+.error {
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 123, 123, 0.24);
+    border-radius: 14px;
+    background: rgba(255, 123, 123, 0.12);
+    color: #ffd7d7;
+}
+
+.card,
+.prediction-block,
+.paper-card,
+.paper-history-card,
+.automation-open-card,
+.automation-pair-card,
+.summary-stat,
+.runtime-stat,
+.runtime-message-card,
+.compact-signal-row {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)), var(--panel);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+.paper-card,
+.paper-history-card,
+.automation-pair-card {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+}
+
+.automation-panel,
+.signal-panel,
+.prediction-panel,
+.manual-panel {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 16px;
+    background: linear-gradient(180deg, rgba(76, 149, 255, 0.09), rgba(255, 255, 255, 0.015)), var(--panel-2);
+}
+
+.panel-head,
+.section-mini-head,
+.signal-card-head,
+.paper-card-head,
+.automation-pair-top,
+.automation-open-card-head,
+.compact-signal-main,
+.section-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.panel-head h2,
+.section-mini-head h3,
+.automation-settings-head h3 {
+    margin: 0;
+    font-size: 1.28rem;
+}
+
+.prediction-kicker {
+    margin-bottom: 4px;
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.prediction-label,
+.field > span,
+.automation-readonly > span,
+.summary-stat > span,
+.runtime-stat > span,
+.mini-metric > span,
+.section-toggle-copy > span {
+    color: var(--muted);
+    font-size: 0.73rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.prediction-value {
+    margin-top: 4px;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.field input,
+.field select,
+.inline-edit input,
+.inline-edit select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(5, 10, 20, 0.34);
+    color: var(--text);
+}
+
+.field-wide,
+.field-toggle {
+    grid-column: span 2;
+}
+
+.meta,
+.risk,
+.paper-card-subtitle,
+.section-toggle-copy > span,
+.signal-section p,
+.runtime-message-card p,
+.automation-open-card-foot {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.prediction-status {
+    margin: 0;
+    color: var(--muted);
+}
+
+.prediction-actions,
+.inline-actions,
+.automation-switch-row,
+.compact-signal-actions,
+.paper-source-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.prediction-button,
+.paper-inline-button,
+.section-toggle {
+    appearance: none;
+    font: inherit;
+}
+
+.automation-open-card,
+.compact-signal-row,
+.prediction-button,
+.paper-inline-button {
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.prediction-button,
+.paper-inline-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(98, 210, 162, 0.24);
+    background: rgba(98, 210, 162, 0.12);
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.prediction-button.alt-button,
+.paper-inline-button.alt {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.paper-inline-button.danger {
+    border-color: rgba(255, 123, 123, 0.28);
+    background: rgba(255, 123, 123, 0.12);
+}
+
+.prediction-button:hover,
+.paper-inline-button:hover,
+.automation-open-card:hover,
+.compact-signal-row:hover {
+    transform: translateY(-1px);
+}
+
+.prediction-button:disabled,
+.paper-inline-button:disabled {
+    opacity: 0.56;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 9px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.badge.long,
+.positive-pill {
+    background: rgba(98, 210, 162, 0.12);
+    color: var(--accent);
+}
+
+.badge.short,
+.negative-pill {
+    background: rgba(255, 123, 123, 0.12);
+    color: var(--danger);
+}
+
+.badge.neutral,
+.neutral-pill {
+    background: rgba(255, 211, 106, 0.12);
+    color: var(--warning);
+}
+
+.positive-number,
+.summary-stat.positive strong,
+.runtime-stat.long strong {
+    color: var(--accent);
+}
+
+.negative-number,
+.summary-stat.negative strong,
+.runtime-stat.short strong {
+    color: var(--danger);
+}
+
+.runtime-stat.neutral strong {
+    color: var(--warning);
+}
+
+.muted-number {
+    color: var(--muted);
+}
+
+.metric,
+.mini-metric {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.metric {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric:last-child {
+    border-bottom: none;
+}
+
+.metric-list,
+.signal-timeframes,
+.signal-card-sections,
+.automation-content,
+.automation-form,
+.automation-settings-shell,
+.console-section-body,
+.signal-detail-shell,
+.paper-form,
+.paper-open-list,
+.paper-history-list,
+.automation-settings-head,
+.section-toggle-copy {
+    display: grid;
+    gap: 12px;
+}
+
+.paper-open-list > *,
+.paper-history-list > *,
+.automation-pairs > * {
+    min-width: 0;
+}
+
+.automation-settings-head,
+.section-toggle-copy {
+    gap: 4px;
+}
+
+.console-block,
+.console-section,
+.automation-settings-section,
+.paper-account-shell {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.section-toggle {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.section-toggle-copy strong,
+.signal-symbol,
+.paper-card-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.section-toggle-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid rgba(98, 210, 162, 0.22);
+    border-radius: 999px;
+    background: rgba(98, 210, 162, 0.12);
+    color: var(--accent);
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.section-summary-grid,
+.paper-preview,
+.paper-account-grid,
+.automation-runtime {
+    display: grid;
+    gap: 10px;
+}
+
+.section-summary-grid,
+.paper-preview,
+.paper-account-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.summary-stat,
+.runtime-stat,
+.runtime-message-card {
+    padding: 12px;
+}
+
+.summary-stat,
+.runtime-stat {
+    display: grid;
+    gap: 4px;
+}
+
+.summary-stat strong,
+.runtime-stat strong,
+.mini-metric strong {
+    font-size: 0.98rem;
+}
+
+.runtime-message-card p {
+    margin: 0;
+}
+
+.paper-empty,
+.empty-state-card {
+    padding: 14px;
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    color: var(--muted);
+}
+
+.compact-actions {
+    margin-top: 2px;
+}
+
+.pair-error {
+    color: #ffd7d7;
+}
+
+.console-section-body[hidden],
+.signal-detail-shell[hidden],
+.automation-content[hidden] {
+    display: none;
+}
+
+@media (max-width: 720px) {
+    .automation-panel,
+    .signal-panel,
+    .prediction-panel,
+    .manual-panel {
+        padding: 14px;
+    }
+
+    .panel-head,
+    .section-mini-head,
+    .signal-card-head,
+    .paper-card-head,
+    .automation-pair-top,
+    .automation-open-card-head,
+    .compact-signal-main,
+    .compact-signal-actions,
+    .section-toggle {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .section-summary-grid,
+    .paper-preview,
+    .paper-account-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .field-wide,
+    .field-toggle {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 520px) {
+    .prediction-button,
+    .paper-inline-button {
+        width: 100%;
+    }
+}
+

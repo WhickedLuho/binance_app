@@ -124,6 +124,8 @@ final class PaperTradeService
         $stopLoss = $this->nullablePositiveFloat($payload['stop_loss'] ?? null);
         $takeProfit = $this->nullablePositiveFloat($payload['take_profit'] ?? null);
         $notes = trim((string) ($payload['notes'] ?? ''));
+        $source = strtoupper(trim((string) ($payload['source'] ?? 'MANUAL')));
+        $automation = is_array($payload['automation'] ?? null) ? $payload['automation'] : null;
 
         $allowedPairs = array_map('strtoupper', (array) $this->config->get('pairs.pairs', []));
         if ($symbol === '' || !in_array($symbol, $allowedPairs, true)) {
@@ -142,8 +144,12 @@ final class PaperTradeService
             throw new InvalidArgumentException('Spot simulation currently supports buy and hold only.');
         }
 
-        if (!in_array($marginType, ['ISOLATED', 'CROSS'], true)) {
-            throw new InvalidArgumentException('Margin type must be ISOLATED or CROSS.');
+        if (!in_array($marginType, ['ISOLATED', 'CROSS', 'SPOT'], true)) {
+            throw new InvalidArgumentException('Margin type must be ISOLATED, CROSS or SPOT.');
+        }
+
+        if (!in_array($source, ['MANUAL', 'AUTO_PREDICTION'], true)) {
+            throw new InvalidArgumentException('Position source is invalid.');
         }
 
         $leverage = $tradeType === 'SPOT' ? 1 : max(1, min((int) $config['max_leverage'], $requestedLeverage));
@@ -174,6 +180,8 @@ final class PaperTradeService
             'stop_loss' => $stopLoss,
             'take_profit' => $takeProfit,
             'notes' => $notes,
+            'source' => $source,
+            'automation' => $source === 'AUTO_PREDICTION' ? $automation : null,
             'status' => 'OPEN',
             'opened_at' => $this->nowAtom(),
             'updated_at' => $this->nowAtom(),
@@ -255,6 +263,8 @@ final class PaperTradeService
                     'opened_at' => $position['opened_at'],
                     'closed_at' => $position['closed_at'] ?? null,
                     'exit_reason' => $position['exit_reason'] ?? null,
+                    'source' => $position['source'] ?? 'MANUAL',
+                    'automation' => $position['automation'] ?? null,
                     'realized_pnl' => round((float) ($position['realized_pnl'] ?? 0.0), 2),
                     'realized_percent' => round((float) ($position['realized_percent'] ?? 0.0), 2),
                     'realized_roe' => round((float) ($position['realized_roe'] ?? 0.0), 2),
@@ -268,7 +278,6 @@ final class PaperTradeService
         $entryPrice = (float) $position['entry_price'];
         $quantity = (float) $position['quantity'];
         $capital = (float) $position['capital'];
-        $leverage = max(1, (int) $position['leverage']);
         $side = (string) $position['side'];
         $tradeType = (string) $position['trade_type'];
         $marginType = (string) $position['margin_type'];

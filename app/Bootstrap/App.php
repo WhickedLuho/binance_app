@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Bootstrap;
 
+use App\Controllers\Api\AutoTradeExecutionController;
+use App\Controllers\Api\AutoTradeSettingsController;
 use App\Controllers\Api\PaperTradeController;
 use App\Controllers\Api\PredictionController;
 use App\Controllers\Api\SignalController;
@@ -13,6 +15,9 @@ use App\Core\Container;
 use App\Core\Request;
 use App\Core\Router;
 use App\Core\View;
+use App\Services\Automation\AutoTradeExecutionService;
+use App\Services\Automation\AutoTradeSettingsRepository;
+use App\Services\Automation\AutoTradeSettingsService;
 use App\Services\Binance\BinanceApiClient;
 use App\Services\Market\MarketAnalyzer;
 use App\Services\Market\MarketSnapshotService;
@@ -63,6 +68,13 @@ final class App
         $container->set(PaperTradeRepository::class, fn (Container $c): PaperTradeRepository => new PaperTradeRepository(
             $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.storage_file', 'storage/cache/paper_trades.json'), '/')
         ));
+        $container->set(AutoTradeSettingsRepository::class, fn (Container $c): AutoTradeSettingsRepository => new AutoTradeSettingsRepository(
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_storage_file', 'storage/cache/auto_trade_settings.json'), '/')
+        ));
+        $container->set(AutoTradeSettingsService::class, fn (Container $c): AutoTradeSettingsService => new AutoTradeSettingsService(
+            $c->get(Config::class),
+            $c->get(AutoTradeSettingsRepository::class)
+        ));
         $container->set(PaperTradeService::class, fn (Container $c): PaperTradeService => new PaperTradeService(
             $c->get(Config::class),
             $c->get(BinanceApiClient::class),
@@ -72,6 +84,15 @@ final class App
             $c->get(Config::class),
             $c->get(MarketSnapshotService::class),
             $c->get(SignalEngine::class)
+        ));
+        $container->set(AutoTradeExecutionService::class, fn (Container $c): AutoTradeExecutionService => new AutoTradeExecutionService(
+            $c->get(Config::class),
+            $c->get(AutoTradeSettingsService::class),
+            $c->get(MarketAnalyzer::class),
+            $c->get(PairPredictionService::class),
+            $c->get(PaperTradeService::class),
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_lock_file', 'storage/cache/auto_trade_heartbeat.lock'), '/'),
+            $this->basePath . '/' . ltrim((string) $c->get(Config::class)->get('paper.automation_status_file', 'storage/cache/auto_trade_heartbeat_status.json'), '/')
         ));
         $container->set(HomeController::class, fn (Container $c): HomeController => new HomeController(
             $c->get(View::class),
@@ -88,6 +109,12 @@ final class App
         ));
         $container->set(PaperTradeController::class, fn (Container $c): PaperTradeController => new PaperTradeController(
             $c->get(PaperTradeService::class)
+        ));
+        $container->set(AutoTradeSettingsController::class, fn (Container $c): AutoTradeSettingsController => new AutoTradeSettingsController(
+            $c->get(AutoTradeSettingsService::class)
+        ));
+        $container->set(AutoTradeExecutionController::class, fn (Container $c): AutoTradeExecutionController => new AutoTradeExecutionController(
+            $c->get(AutoTradeExecutionService::class)
         ));
 
         $router = new Router($container);

@@ -1,0 +1,60 @@
+.prediction-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.prediction-scenarios,
+.prediction-timeframes {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.prediction-block {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    padding: 14px;
+}
+
+.prediction-block .metric-list {
+    gap: 8px;
+}
+
+.prediction-block .metric {
+    align-items: flex-start;
+}
+
+.prediction-block .metric span:last-child {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.scenario-bearish {
+    border-color: rgba(255, 123, 123, 0.22);
+}
+
+.scenario-bullish {
+    border-color: rgba(98, 210, 162, 0.22);
+}
+
+.scenario-neutral {
+    border-color: rgba(255, 211, 106, 0.22);
+}
+
+@media (max-width: 960px) {
+    .prediction-grid,
+    .prediction-scenarios,
+    .prediction-timeframes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .prediction-grid,
+    .prediction-scenarios,
+    .prediction-timeframes {
+        grid-template-columns: 1fr;
+    }
+}
