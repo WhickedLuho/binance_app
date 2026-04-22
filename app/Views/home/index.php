@@ -157,7 +157,7 @@ $configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])),
                                         <p class="meta">Only applied when a futures entry type is enabled.</p>
                                     </div>
                                 </div>
-                                <div class="automation-grid">
+                                <div class="automation-grid automation-grid-two">
                                     <label class="field">
                                         <span>Default margin type</span>
                                         <select id="automation-margin-type">
@@ -179,7 +179,7 @@ $configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])),
                                         <p class="meta">Minimum expected reward for bullish futures entries.</p>
                                     </div>
                                 </div>
-                                <div class="automation-grid">
+                                <div class="automation-grid automation-grid-single">
                                     <label class="field">
                                         <span>Min reward % (long)</span>
                                         <input type="number" id="automation-min-profit-long" min="0" step="0.1" value="1.2">
@@ -194,7 +194,7 @@ $configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])),
                                         <p class="meta">Minimum expected reward for bearish futures entries.</p>
                                     </div>
                                 </div>
-                                <div class="automation-grid">
+                                <div class="automation-grid automation-grid-single">
                                     <label class="field">
                                         <span>Min reward % (short)</span>
                                         <input type="number" id="automation-min-profit-short" min="0" step="0.1" value="1.2">
@@ -209,7 +209,7 @@ $configuredPairsJson = htmlspecialchars(json_encode(array_values($pairs ?? [])),
                                         <p class="meta">Minimum expected reward for spot entries.</p>
                                     </div>
                                 </div>
-                                <div class="automation-grid">
+                                <div class="automation-grid automation-grid-single">
                                     <label class="field">
                                         <span>Min reward % (spot)</span>
                                         <input type="number" id="automation-min-profit-spot" min="0" step="0.1" value="0.8">

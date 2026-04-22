@@ -35,28 +35,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.field {
-    display: grid;
-    gap: 6px;
-}
-
-.field input,
-.field select,
-.inline-edit input,
-.inline-edit select {
-    width: 100%;
-    padding: 10px 11px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    background: rgba(5, 10, 20, 0.34);
-    color: var(--text);
-}
-
-.field-wide,
-.field-toggle {
-    grid-column: span 2;
-}
-
 .paper-form.is-disabled {
     opacity: 0.72;
 }
@@ -121,11 +99,6 @@
     .inline-edit-grid,
     .paper-account-grid {
         grid-template-columns: 1fr;
-    }
-
-    .field-wide,
-    .field-toggle {
-        grid-column: span 1;
     }
 }
 

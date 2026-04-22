@@ -1,13 +1,34 @@
-.prediction-grid,
-.prediction-scenarios,
-.prediction-timeframes {
+.prediction-grid {
     display: grid;
     gap: 10px;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.compact-actions {
-    margin-top: 2px;
+.prediction-scenarios,
+.prediction-timeframes {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.prediction-block {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    padding: 14px;
+}
+
+.prediction-block .metric-list {
+    gap: 8px;
+}
+
+.prediction-block .metric {
+    align-items: flex-start;
+}
+
+.prediction-block .metric span:last-child {
+    text-align: right;
+    overflow-wrap: anywhere;
 }
 
 .scenario-bearish {

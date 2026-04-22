@@ -159,9 +159,6 @@ const applyCollapsibleState = (config, expanded) => {
     if (label) {
         label.textContent = expanded ? config.expandedLabel : config.collapsedLabel;
     }
-    if (config.wrapper) {
-        config.wrapper.classList.toggle('is-collapsed', !expanded);
-    }
     try {
         window.localStorage.setItem(config.storageKey, expanded ? 'expanded' : 'collapsed');
     } catch {

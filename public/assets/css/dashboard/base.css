@@ -114,6 +114,28 @@
     font-weight: 700;
 }
 
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.field input,
+.field select,
+.inline-edit input,
+.inline-edit select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(5, 10, 20, 0.34);
+    color: var(--text);
+}
+
+.field-wide,
+.field-toggle {
+    grid-column: span 2;
+}
+
 .meta,
 .risk,
 .paper-card-subtitle,
@@ -149,6 +171,13 @@
     font: inherit;
 }
 
+.automation-open-card,
+.compact-signal-row,
+.prediction-button,
+.paper-inline-button {
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
 .prediction-button,
 .paper-inline-button {
     display: inline-flex;
@@ -162,7 +191,6 @@
     color: var(--text);
     font-weight: 700;
     cursor: pointer;
-    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
 }
 
 .prediction-button.alt-button,
@@ -228,6 +256,10 @@
 .summary-stat.negative strong,
 .runtime-stat.short strong {
     color: var(--danger);
+}
+
+.runtime-stat.neutral strong {
+    color: var(--warning);
 }
 
 .muted-number {
@@ -367,6 +399,10 @@
     color: var(--muted);
 }
 
+.compact-actions {
+    margin-top: 2px;
+}
+
 .pair-error {
     color: #ffd7d7;
 }
@@ -402,6 +438,11 @@
     .paper-preview,
     .paper-account-grid {
         grid-template-columns: 1fr;
+    }
+
+    .field-wide,
+    .field-toggle {
+        grid-column: span 1;
     }
 }
 
